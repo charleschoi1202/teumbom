@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useState } from "react";
@@ -41,8 +40,8 @@ export default function Start() {
     setBusy(as);
     setErr("");
     try {
-      await s.startRoom();
-      if (as === "teacher") s.switchRole("teacher");
+      if (as === "guardian") await s.startGuardian();
+      else await s.startTeacher();
       router.push(as === "guardian" ? "/g/home" : "/t/visits");
     } catch (e) {
       setErr((e as Error).message);
@@ -50,7 +49,7 @@ export default function Start() {
     }
   }
 
-  const resume = s.ready && s.room && (s.tokens.guardian || s.tokens.teacher);
+  const resume = s.ready && s.role && s.tokens[s.role];
 
   return (
     <div className="min-h-dvh lg:flex lg:items-center lg:justify-center lg:gap-16 lg:px-12">
@@ -78,13 +77,12 @@ export default function Start() {
           {server === "down" && <ErrorText>시연 서버에 연결하지 못했어요. 잠시 후 새로고침해 주세요.</ErrorText>}
           <ErrorText>{err}</ErrorText>
           <div className="flex flex-col gap-3">
-            <Button onClick={() => begin("guardian")} disabled={!!busy}>{busy === "guardian" ? "시연 방을 만드는 중…" : "보호자로 체험하기"}</Button>
-            <Button kind="secondary" onClick={() => begin("teacher")} disabled={!!busy}>{busy === "teacher" ? "시연 방을 만드는 중…" : "선생님으로 체험하기"}</Button>
+            <Button onClick={() => begin("guardian")} disabled={!!busy}>{busy === "guardian" ? "준비하는 중…" : "보호자로 체험하기"}</Button>
+            <Button kind="secondary" onClick={() => begin("teacher")} disabled={!!busy}>{busy === "teacher" ? "준비하는 중…" : "선생님으로 체험하기"}</Button>
             {resume && (
-              <Button kind="text" href={s.role === "teacher" ? "/t/visits" : "/g/home"}>이어서 하기 · 방 {s.room}</Button>
+              <Button kind="text" href={s.role === "teacher" ? "/t/visits" : "/g/home"}>이어서 하기</Button>
             )}
             <Button kind="text" href="/login">내 계정으로 시작하기</Button>
-            <Link href="/join" className="t16 text-center font-bold text-brand">방 코드로 선생님 참여하기</Link>
           </div>
         </div>
       </div>

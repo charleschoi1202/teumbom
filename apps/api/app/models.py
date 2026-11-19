@@ -1,9 +1,5 @@
-"""Domain model.
-
-A *Room* is an isolated demo sandbox: one guardian household plus one live
-teacher identity (김하늘) that a second phone can join. The shared teacher pool
-(room_id = NULL) is what the recommender searches.
-"""
+"""Domain model: guardians, verified teachers, visits and what happens during a visit."""
+import secrets
 from datetime import datetime, timezone
 
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text
@@ -16,17 +12,11 @@ def now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-class Room(Base):
-    __tablename__ = "rooms"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    code: Mapped[str] = mapped_column(String(8), unique=True, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
-
 
 class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True)
-    room_id: Mapped[int | None] = mapped_column(ForeignKey("rooms.id"), index=True)
+    key: Mapped[str] = mapped_column(String(32), default=lambda: secrets.token_hex(16))
     role: Mapped[str] = mapped_column(String(16))  # guardian | teacher | admin
     name: Mapped[str] = mapped_column(String(40))
     teacher_id: Mapped[int | None] = mapped_column(ForeignKey("teachers.id"))
@@ -43,14 +33,12 @@ class User(Base):
 class Teacher(Base):
     __tablename__ = "teachers"
     id: Mapped[int] = mapped_column(primary_key=True)
-    room_id: Mapped[int | None] = mapped_column(ForeignKey("rooms.id"), index=True)
     name: Mapped[str] = mapped_column(String(20))
     region: Mapped[str] = mapped_column(String(20))  # 춘천시, 원주시 ...
     area: Mapped[str] = mapped_column(String(30), default="")  # 석사동 (활동 중심 동네)
     lat: Mapped[float | None] = mapped_column(default=None)
     lng: Mapped[float | None] = mapped_column(default=None)
     radius_km: Mapped[float] = mapped_column(default=5.0)  # 방문 가능 반경
-    source_id: Mapped[int | None] = mapped_column(Integer)  # room copy → pool profile
     # 선택 입력: 선생님의 관심사·삶의 경험. 보호자의 "추가 정보" 맥락 매칭에만 쓰임
     context: Mapped[str] = mapped_column(Text, default="")
     # certified = 교원 자격 보유(정교사 1·2급, 퇴직 교원 포함)
@@ -75,7 +63,6 @@ class Teacher(Base):
 class Visit(Base):
     __tablename__ = "visits"
     id: Mapped[int] = mapped_column(primary_key=True)
-    room_id: Mapped[int] = mapped_column(ForeignKey("rooms.id"), index=True)
     guardian_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     teacher_id: Mapped[int] = mapped_column(ForeignKey("teachers.id"))
     date: Mapped[str] = mapped_column(String(10))  # 2026-11-20

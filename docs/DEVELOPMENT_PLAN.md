@@ -35,7 +35,7 @@
         ▼
 [FastAPI 백엔드 (Python 3.12)]
   ├─ REST API: 인증·방문·통신문·할 일·기록·리포트·매칭·운영
-  ├─ WebSocket /ws/{room}: 실시간 상태 동기화 + WebRTC 시그널링
+  ├─ WebSocket /ws?token=: 계정별 실시간 상태 동기화 + WebRTC 시그널링(방문 당사자 간 중계)
   ├─ AI 모듈: 통신문 추출(3중 검증) · 매칭 · 리포트 · 서류 추출 · 이상 감지
   └─ SQLAlchemy → PostgreSQL(운영) / SQLite(로컬·폴백)
         │
@@ -51,9 +51,9 @@
 
 ## 2. 사용자와 화면 구성 (Figma 기준)
 
-### 시연 방(Demo Room) 개념
-여러 사람이 동시에 QR로 접속해도 서로 섞이지 않도록, **"보호자로 체험하기"를 누르면 새 시연 방**이 만들어짐.
-보호자 화면에 표시되는 **방 코드/QR**을 다른 휴대폰에서 찍으면 같은 방의 **선생님(김하늘)** 으로 입장 → 두 대의 휴대폰으로 요청·수락·통신문·실시간 영상·리포트 전 과정을 실제로 주고받음. 한 대로 시연할 때는 상단 "역할 전환"으로 오감.
+### 계정 개념 (방 코드 없음 — 3차 변경)
+**"보호자로 체험하기"**를 누르면 그 기기에 새 보호자 계정이 생김. **"선생님으로 체험하기"**(또는 가입·로그인의 선생님)는 시연 선생님 계정(기본 김하늘, 다른 선생님도 선택 가능)으로 들어감.
+방문 요청은 보호자가 고른 그 선생님 계정에 도착하고, 실시간 알림·영상은 **해당 방문의 보호자와 선생님 사이에서만** 오감. 한 대로 시연할 때는 "역할 전환"이 방금 요청한 선생님 계정으로 바꿔 줌.
 
 ### 보호자 앱 (하단 탭: 홈 · 선생님 찾기 · 방문 일정 · 리포트)
 | ID | 화면 | 핵심 동작 |
@@ -96,7 +96,7 @@
 ## 3. 백엔드 (FastAPI) 설계
 
 ### 데이터 모델
-- `Room`(시연 방) · `User`(role: guardian/teacher/admin, room_id)
+- `User`(role: guardian/teacher, key: 토큰 바인딩용 난수 — 데이터 초기화 뒤 옛 토큰이 다른 계정으로 풀리지 않게 함)
 - `TeacherProfile`: 이름, 지역, 자격 유형(`certified`=교원 자격 / `qualified`=준자격), 자격 상세, 경력 연수, 과목·성향 태그, 소개, 검증 상태(서류·범죄경력·표준 교육·동반 시범)
 - `Visit`: 보호자, 선생님, 일시, 유형(단발/정기), 금액, 상태(requested/declined/payment/booked/live/draft/sent/cancelled), 영상 동의(보호자·선생님), 주소 공개 여부
 - `Notice`(통신문): 원문 텍스트, 추출 결과(JSON), 검증 플래그, 상태(reading/review/approved)
@@ -108,9 +108,10 @@
 
 ### 주요 API
 ```
-POST /api/rooms                         시연 방 생성(보호자 입장)
-POST /api/rooms/{code}/join             같은 방에 선생님으로 입장
-GET  /api/me · POST /api/auth/demo      데모 로그인(JWT)
+POST /api/auth/guardian                 보호자로 시작(새 계정, JWT)
+GET  /api/auth/teachers                 시연 선생님 계정 목록
+POST /api/auth/teacher {teacher_id?}    선생님으로 시작(기본 김하늘, JWT)
+GET  /api/me
 POST /api/match/tags                    자연어 → 태그(AI)
 POST /api/match/recommend               태그·조건 → 추천 목록(점수·사유)
 GET  /api/teachers/{id}
@@ -124,7 +125,7 @@ POST /api/visits/{id}/report/draft      리포트 초안(AI) · POST .../report/
 PATCH /api/visits/{id}/consent          영상 공유 동의/철회
 GET  /api/admin/reviews · POST /api/admin/reviews/{id}/(approve|request)
 GET  /api/admin/alerts · POST /api/admin/alerts/{id}/resolve
-WS   /ws/{room}                         상태 변경 이벤트 + WebRTC offer/answer/ice
+WS   /ws?token=                         상태 변경 이벤트 + WebRTC offer/answer/ice(방문 상대에게만 중계)
 ```
 
 ## 4. AI 모듈 설계 (기획서 3-2 대응)

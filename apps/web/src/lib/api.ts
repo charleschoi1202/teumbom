@@ -13,7 +13,6 @@ export function wsBase(): string {
 
 const TOKENS = "tb.tokens";
 const ROLE = "tb.role";
-const ROOM = "tb.room";
 
 type Tokens = Partial<Record<Role, string>>;
 
@@ -49,11 +48,9 @@ export function loadRole(): Role | null {
 export function saveRole(r: Role | null) {
   safeSet(ROLE, r);
 }
-export function loadRoom(): string | null {
-  return safeGet(ROOM);
-}
-export function saveRoom(code: string | null) {
-  safeSet(ROOM, code);
+/** Drops the storage key of the old room-code version so it never lingers. */
+export function clearLegacy() {
+  safeSet("tb.room", null);
 }
 
 export class ApiError extends Error {

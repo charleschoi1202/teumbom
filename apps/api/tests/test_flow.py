@@ -17,9 +17,8 @@ def h(token):
 
 def test_full_visit_flow():
     with TestClient(app) as c:
-        room = c.post("/api/rooms").json()
-        g = h(room["token"])
-        t = h(c.post(f"/api/rooms/{room['code']}/join", json={"role": "teacher"}).json()["token"])
+        g = h(c.post("/api/auth/guardian").json()["token"])
+        t = h(c.post("/api/auth/teacher", json={}).json()["token"])  # 기본 시연 선생님 = 김하늘
 
         tags = c.post("/api/match/tags", headers=g, json={"text": "낯을 가려요. 숙제를 차분히 도와주시면 좋겠어요."}).json()["tags"]
         assert "낯가림" in tags and "숙제 지도" in tags
@@ -73,7 +72,7 @@ def test_full_visit_flow():
 
 def test_context_adds_matching_experience():
     with TestClient(app) as c:
-        g = h(c.post("/api/rooms").json()["token"])
+        g = h(c.post("/api/auth/guardian").json()["token"])
         base = {"date": "2026-11-20", "start": "15:00", "tags": ["숙제 지도"]}
         plain = c.post("/api/match/recommend", headers=g, json=base).json()["teachers"]
         assert all("추가 정보" not in r for t in plain for r in t["reasons"])
@@ -89,7 +88,7 @@ def test_context_adds_matching_experience():
 
 def test_distance_uses_my_location():
     with TestClient(app) as c:
-        g = h(c.post("/api/rooms").json()["token"])
+        g = h(c.post("/api/auth/guardian").json()["token"])
         # move the household to 원주 무실동 → 원주 teachers become the available ones
         c.patch("/api/me/household", headers=g, json={"region": "강원특별자치도 원주시 무실동", "area": "무실동",
                                                       "address": "원주시 예시로 1", "address_detail": "101호",
@@ -100,16 +99,26 @@ def test_distance_uses_my_location():
 
 
 def test_stale_token_after_reset_is_rejected_not_misrouted():
-    """After a demo DB reset, an old guardian token must not resolve to another room's teacher."""
+    """After a demo DB reset, an old token (same id, different key) must be rejected, not resolve to someone else."""
     from app import auth
-    from app.db import SessionLocal
-    from app.models import User
     with TestClient(app) as c:
-        room = c.post("/api/rooms").json()
-        with SessionLocal() as db:
-            teacher = db.query(User).filter(User.role == "teacher").first()
-            forged = auth.jwt.encode({"sub": str(teacher.id), "role": "guardian", "room": teacher.room_id,
-                                      "code": "OLDOLD"}, auth.SECRET, algorithm=auth.ALGO)
+        mine = c.post("/api/auth/guardian").json()["token"]
+        uid = auth.jwt.decode(mine, auth.SECRET, algorithms=[auth.ALGO])["sub"]
+        forged = auth.jwt.encode({"sub": uid, "role": "guardian", "key": "old-key-from-before-reset"},
+                                 auth.SECRET, algorithm=auth.ALGO)
         r = c.post("/api/visits", headers=h(forged), json={"teacher_id": 1, "date": "2026-11-20"})
         assert r.status_code == 401 and "초기화" in r.json()["detail"]
-        assert c.get("/api/me", headers=h(room["token"])).status_code == 200
+        assert c.get("/api/me", headers=h(mine)).status_code == 200
+
+
+def test_visits_are_private_to_their_guardian_and_teacher():
+    with TestClient(app) as c:
+        g1 = h(c.post("/api/auth/guardian").json()["token"])
+        g2 = h(c.post("/api/auth/guardian").json()["token"])
+        accounts = c.get("/api/auth/teachers").json()
+        other = next(t for t in accounts["teachers"] if t["name"] == "박다솜")
+        t_other = h(c.post("/api/auth/teacher", json={"teacher_id": other["id"]}).json()["token"])
+        v = c.post("/api/visits", headers=g1, json={"teacher_id": other["id"], "date": "2026-11-20", "start": "15:00"}).json()
+        assert c.get(f"/api/visits/{v['id']}", headers=g2).status_code == 404
+        assert any(x["id"] == v["id"] for x in c.get("/api/visits", headers=t_other).json()["visits"])
+        assert all(x["id"] != v["id"] for x in c.get("/api/visits", headers=g2).json()["visits"])

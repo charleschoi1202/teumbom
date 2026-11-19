@@ -56,7 +56,6 @@ export type Visit = {
   status: VisitStatus;
   phase: Phase;
   teacher: Teacher;
-  simulated_teacher: boolean;
   household: string;
   child_desc: string;
   region: string;
@@ -121,8 +120,6 @@ export type Me = {
   id: number;
   role: "guardian" | "teacher";
   name: string;
-  room: string | null;
-  peers: string[];
   household: { region: string; area: string; lat: number | null; lng: number | null; address: string; address_detail: string; child_desc: string };
   teacher: Teacher | null;
 };

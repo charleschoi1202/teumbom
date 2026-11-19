@@ -70,19 +70,19 @@ try {
   const G = await phone("guardian");
   const T = await phone("teacher");
 
-  // S01 → room
+  // S01 → guardian account (no room codes: each phone is its own account)
   await G.goto(BASE, { waitUntil: "networkidle0" });
   await shot(G, "m01_S01_start");
   await click(G, "보호자로 체험하기");
   await G.waitForFunction(() => location.pathname === "/g/home", { timeout: 20000 });
   await waitText(G, "안녕하세요, 보호자님");
   await shot(G, "m02_S02_home");
-  const room = await G.evaluate(() => localStorage.getItem("tb.room"));
-  check("room created", /^[A-Z0-9]{6}$/.test(room || ""));
+  check("no room code in storage", !(await G.evaluate(() => localStorage.getItem("tb.room"))));
+  check("no room-code link on S01", !(await G.evaluate(() => document.body.innerText)).includes("방 코드"));
 
-  // teacher phone joins by QR link
-  await T.goto(`${BASE}/join?code=${room}&role=teacher`, { waitUntil: "networkidle0" });
-  await click(T, "시연 방 들어가기");
+  // teacher phone: demo teacher account (default 김하늘 — the teacher the guardian will pick)
+  await T.goto(BASE, { waitUntil: "networkidle0" });
+  await click(T, "선생님으로 체험하기");
   await T.waitForFunction(() => location.pathname === "/t/visits", { timeout: 20000 });
   await waitText(T, "선생님, 안녕하세요");
 

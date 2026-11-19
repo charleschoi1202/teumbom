@@ -13,7 +13,6 @@ export function VisitCard({ v, as = "guardian", price }: { v: Visit; as?: "guard
     <Card className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <PhaseBadge phase={v.phase} />
-        {v.simulated_teacher && as === "guardian" && <span className="t14 text-muted">자동 응답 선생님</span>}
       </div>
       <p className="t16 font-bold">{v.date_label} {v.time_label}</p>
       <div className="flex items-center gap-3">

@@ -7,21 +7,20 @@ from fastapi import Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from .db import get_db
-from .models import Room, User
+from .models import User
 
 SECRET = os.getenv("JWT_SECRET") or secrets.token_urlsafe(32)
 ALGO = "HS256"
-RESET_MSG = "시연 방이 초기화됐어요. 처음부터 다시 시작해 주세요."
+RESET_MSG = "시연 데이터가 초기화됐어요. 처음부터 다시 시작해 주세요."
 
 
-def issue(user: User, room_code: str) -> str:
-    # Room code + role are part of the token: after a demo DB reset, user ids are reused by
-    # other rooms, so an old token must never resolve to someone else's account.
+def issue(user: User) -> str:
+    # The per-user random key is part of the token: after a demo DB reset user ids are reused,
+    # so an old token must never resolve to someone else's account.
     payload = {
         "sub": str(user.id),
         "role": user.role,
-        "room": user.room_id,
-        "code": room_code,
+        "key": user.key,
         "exp": datetime.now(timezone.utc) + timedelta(days=7),
     }
     return jwt.encode(payload, SECRET, algorithm=ALGO)
@@ -36,10 +35,7 @@ def decode(token: str) -> dict:
 
 def resolve(db: Session, data: dict) -> User | None:
     user = db.get(User, int(data["sub"]))
-    if not user or user.role != data.get("role") or user.room_id != data.get("room"):
-        return None
-    room = db.get(Room, user.room_id) if user.room_id else None
-    if not room or room.code != data.get("code"):
+    if not user or user.role != data.get("role") or user.key != data.get("key"):
         return None
     return user
 

@@ -14,9 +14,9 @@ from .ai import notice as ai_notice
 from .ai import report as ai_report
 from .ai import llm
 from .db import get_db
-from .models import ActivityRecord, Notice, Report, Room, Task, Teacher, User, Visit, now
-from .realtime import hub
-from .seed import clone_for_room, create_room
+from .models import ActivityRecord, Notice, Report, Task, Teacher, User, Visit, now
+from .realtime import hub, visit_channels
+from .seed import DEFAULT_HOME, DEFAULT_TEACHER
 
 router = APIRouter(prefix="/api")
 KST = timezone(timedelta(hours=9))
@@ -103,7 +103,7 @@ def visit_out(db: Session, v: Visit, viewer: User) -> dict:
         "kind": v.kind, "kind_label": "정기 방문" if v.kind == "regular" else "단발 방문",
         "price": v.price, "note": v.note, "tags": v.tags,
         "status": v.status, "phase": phase(v, n),
-        "teacher": teacher_out(v.teacher), "simulated_teacher": v.teacher.room_id is None,
+        "teacher": teacher_out(v.teacher),
         "household": f"{guardian.area or city(guardian.region)} 보호자 가정" if guardian else "보호자 가정",
         "child_desc": guardian.child_desc if guardian else "",
         "region": guardian.region if guardian else "",
@@ -123,7 +123,9 @@ def visit_out(db: Session, v: Visit, viewer: User) -> dict:
 
 def get_visit(db: Session, visit_id: int, user: User) -> Visit:
     v = db.get(Visit, visit_id)
-    if not v or v.room_id != user.room_id:
+    if not v:
+        raise HTTPException(404, "방문을 찾을 수 없어요.")
+    if (user.role == "guardian" and v.guardian_id != user.id) or (user.role == "teacher" and v.teacher_id != user.teacher_id):
         raise HTTPException(404, "방문을 찾을 수 없어요.")
     return v
 
@@ -134,7 +136,7 @@ def need_status(v: Visit, *allowed: str) -> None:
 
 
 def changed(v: Visit, what: str = "visit") -> None:
-    hub.notify(v.room_id, what, v.id)
+    hub.notify(visit_channels(v), what, v.id)
 
 
 def ensure_basic_tasks(db: Session, v: Visit) -> None:
@@ -145,11 +147,7 @@ def ensure_basic_tasks(db: Session, v: Visit) -> None:
 
 
 
-# ───────────────────────────── rooms & auth ─────────────────────────────
-class JoinIn(BaseModel):
-    role: str = "teacher"
-
-
+# ───────────────────────────── auth ─────────────────────────────
 @router.get("/config")
 def config():
     ice = [{"urls": ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"]}]
@@ -159,30 +157,47 @@ def config():
     return {"ice_servers": ice, "ai_engine": "claude" if llm.enabled() else "rules"}
 
 
-@router.post("/rooms")
-def new_room(db: Session = Depends(get_db)):
-    room, guardian, _teacher = create_room(db)
-    return {"code": room.code, "token": auth.issue(guardian, room.code), "role": "guardian"}
+@router.post("/auth/guardian")
+def guardian_start(db: Session = Depends(get_db)):
+    """보호자로 시작: 기기마다 새 보호자 계정(시연)."""
+    user = User(role="guardian", name="보호자", **DEFAULT_HOME)
+    db.add(user)
+    db.commit()
+    return {"token": auth.issue(user), "role": "guardian"}
 
 
-@router.post("/rooms/{code}/join")
-def join_room(code: str, body: JoinIn, db: Session = Depends(get_db)):
-    room = db.scalar(select(Room).where(Room.code == code.upper().strip()))
-    if not room:
-        raise HTTPException(404, "시연 방 코드를 다시 확인해 주세요.")
-    if body.role not in ("teacher", "guardian"):
-        raise HTTPException(400, "역할을 선택해 주세요.")
-    user = db.scalar(select(User).where(User.room_id == room.id, User.role == body.role))
-    return {"code": room.code, "token": auth.issue(user, room.code), "role": user.role}
+@router.get("/auth/teachers")
+def teacher_accounts(db: Session = Depends(get_db)):
+    """선생님 시연 계정 목록(가입·로그인에서 고름)."""
+    rows = db.scalars(select(Teacher).order_by(Teacher.id))
+    return {"teachers": [{"id": t.id, "name": t.name, "headline": t.headline, "region": t.region, "area": t.area}
+                         for t in rows], "default": DEFAULT_TEACHER}
+
+
+class TeacherStartIn(BaseModel):
+    teacher_id: int | None = None
+
+
+@router.post("/auth/teacher")
+def teacher_start(body: TeacherStartIn, db: Session = Depends(get_db)):
+    """선생님으로 시작: 시연 선생님 계정으로 로그인(같은 선생님은 여러 기기에서 같은 계정)."""
+    t = db.get(Teacher, body.teacher_id) if body.teacher_id else \
+        db.scalar(select(Teacher).where(Teacher.name == DEFAULT_TEACHER))
+    if not t:
+        raise HTTPException(404, "선생님을 찾을 수 없어요.")
+    user = db.scalar(select(User).where(User.role == "teacher", User.teacher_id == t.id))
+    if not user:
+        user = User(role="teacher", name=t.name, teacher_id=t.id)
+        db.add(user)
+        db.commit()
+    return {"token": auth.issue(user), "role": "teacher", "teacher_id": t.id}
 
 
 @router.get("/me")
 def me(user: User = Depends(auth.current_user), db: Session = Depends(get_db)):
-    room = db.get(Room, user.room_id) if user.room_id else None
     teacher = db.get(Teacher, user.teacher_id) if user.teacher_id else None
     return {
-        "id": user.id, "role": user.role, "name": user.name, "room": room.code if room else None,
-        "peers": hub.peers(user.room_id) if user.room_id else [],
+        "id": user.id, "role": user.role, "name": user.name,
         "household": {"region": user.region, "area": user.area, "lat": user.lat, "lng": user.lng,
                       "address": user.address, "address_detail": user.address_detail, "child_desc": user.child_desc},
         "teacher": teacher_out(teacher) if teacher else None,
@@ -206,7 +221,7 @@ def update_household(body: HouseholdIn, user: User = Depends(auth.require("guard
     if body.lat is not None and body.lng is not None:
         user.lat, user.lng = body.lat, body.lng
     db.commit()
-    hub.notify(user.room_id, "household")
+    hub.notify([f"g{user.id}"], "household")
     return {"ok": True}
 
 
@@ -232,7 +247,7 @@ def update_teacher(body: TeacherProfileIn, user: User = Depends(auth.require("te
     if body.name:
         user.name = body.name
     db.commit()
-    hub.notify(user.room_id, "teacher")
+    hub.notify([f"t{t.id}"], "teacher")
     return teacher_out(t)
 
 
@@ -258,7 +273,7 @@ class RecommendIn(BaseModel):
 
 @router.post("/match/recommend")
 def recommend(body: RecommendIn, user: User = Depends(auth.current_user), db: Session = Depends(get_db)):
-    pool = list(db.scalars(select(Teacher).where(Teacher.room_id.is_(None))))
+    pool = list(db.scalars(select(Teacher)))
     lat, lng = body.lat, body.lng
     if lat is None or lng is None:
         lat, lng = user.lat, user.lng
@@ -269,7 +284,7 @@ def recommend(body: RecommendIn, user: User = Depends(auth.current_user), db: Se
 @router.get("/teachers/{teacher_id}")
 def teacher_detail(teacher_id: int, user: User = Depends(auth.current_user), db: Session = Depends(get_db)):
     t = db.get(Teacher, teacher_id)
-    if not t or (t.room_id not in (None, user.room_id)):
+    if not t:
         raise HTTPException(404, "선생님을 찾을 수 없어요.")
     return teacher_out(t)
 
@@ -286,18 +301,10 @@ class VisitIn(BaseModel):
 
 @router.post("/visits")
 def create_visit(body: VisitIn, user: User = Depends(auth.require("guardian")), db: Session = Depends(get_db)):
-    src = db.get(Teacher, body.teacher_id)
-    if not src or src.room_id not in (None, user.room_id):
+    t = db.get(Teacher, body.teacher_id)
+    if not t:
         raise HTTPException(404, "선생님을 찾을 수 없어요.")
-    t = src
-    if src.room_id is None:
-        # In a demo room the second phone becomes the teacher the guardian picked.
-        t = db.scalar(select(Teacher).where(Teacher.room_id == user.room_id, Teacher.source_id == src.id))
-        t = t or clone_for_room(db, src, user.room_id)
-        teacher_user = db.scalar(select(User).where(User.room_id == user.room_id, User.role == "teacher"))
-        if teacher_user:
-            teacher_user.teacher_id, teacher_user.name = t.id, t.name
-    v = Visit(room_id=user.room_id, guardian_id=user.id, teacher_id=t.id, date=body.date, start=body.start,
+    v = Visit(guardian_id=user.id, teacher_id=t.id, date=body.date, start=body.start,
               kind=body.kind, price=60000 if body.kind == "regular" else 70000, note=body.note, tags=body.tags)
     db.add(v)
     db.commit()
@@ -307,7 +314,8 @@ def create_visit(body: VisitIn, user: User = Depends(auth.require("guardian")), 
 
 @router.get("/visits")
 def list_visits(user: User = Depends(auth.current_user), db: Session = Depends(get_db)):
-    q = select(Visit).where(Visit.room_id == user.room_id)
+    q = select(Visit).where(Visit.guardian_id == user.id) if user.role == "guardian" \
+        else select(Visit).where(Visit.teacher_id == user.teacher_id)
     visits = list(db.scalars(q.order_by(Visit.id.desc())))
     return {"visits": [visit_out(db, v, user) for v in visits]}
 
@@ -509,7 +517,7 @@ def report_out(db: Session, v: Visit) -> dict | None:
 
 @router.get("/reports")
 def reports(user: User = Depends(auth.require("guardian")), db: Session = Depends(get_db)):
-    visits = list(db.scalars(select(Visit).where(Visit.room_id == user.room_id, Visit.status == "sent").order_by(Visit.date.desc())))
+    visits = list(db.scalars(select(Visit).where(Visit.guardian_id == user.id, Visit.status == "sent").order_by(Visit.date.desc())))
     items = [r for r in (report_out(db, v) for v in visits) if r]
     week_reading = sum(r["reading_min"] or 0 for r in items)
     return {"reports": items, "week": {"reading_min": week_reading, "visits": len(items)}}

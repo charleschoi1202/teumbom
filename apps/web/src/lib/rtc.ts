@@ -4,7 +4,7 @@ import type { RtcMessage } from "./session";
 
 /**
  * One-to-one live view: teacher phone (sender) → guardian (viewer).
- * Signaling rides on the room WebSocket ({type:"rtc", kind: hello|offer|answer|ice|bye}).
+ * Signaling rides on the account WebSocket (relayed only to the other person of the visit) ({type:"rtc", kind: hello|offer|answer|ice|bye}).
  * Nothing is recorded: media flows peer-to-peer (or via TURN when configured).
  */
 type Send = (msg: Omit<RtcMessage, "type">) => void;

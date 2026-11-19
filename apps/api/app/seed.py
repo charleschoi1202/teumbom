@@ -1,4 +1,4 @@
-"""Seed data: verified teacher pool across 강원 at 동(neighbourhood) level, demo rooms.
+"""Seed data: verified teacher pool across 강원 at 동(neighbourhood) level.
 
 Every teacher is verified exactly as in the original design (교원 자격 or 준자격,
 범죄경력, 표준 교육). On top of that each teacher has a short `context` — their
@@ -6,13 +6,10 @@ interests and life experience — used only by the optional "추가 정보" matc
 """
 from __future__ import annotations
 
-import secrets
-import string
-
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .models import Room, Teacher, User
+from .models import Teacher
 
 WEEK = ["월", "화", "수", "목", "금"]
 
@@ -76,14 +73,14 @@ POOL: list[tuple] = [
 
 DEFAULT_TEACHER = "김하늘"
 
-# Default household location for a new demo room until the guardian shares their location
+# Default household location for a new guardian until they share their location
 DEFAULT_HOME = dict(region="강원특별자치도 춘천시 석사동", area="석사동", lat=37.8519, lng=127.7468)
 
 
 def _teacher(row: tuple) -> Teacher:
     (name, city, area, lat, lng, qual_type, qual_detail, years, headline, tags, days, start, rating, context) = row
     return Teacher(
-        room_id=None, name=name, region=city, area=area, lat=lat, lng=lng, radius_km=5.0,
+        name=name, region=city, area=area, lat=lat, lng=lng, radius_km=5.0,
         qual_type=qual_type, qual_detail=qual_detail, years=years, headline=headline,
         title="차분하게, 아이의 속도에 맞춰요" if name == DEFAULT_TEACHER else "아이의 하루를 차근차근 함께해요",
         intro=(
@@ -96,41 +93,10 @@ def _teacher(row: tuple) -> Teacher:
     )
 
 
-def clone_for_room(db: Session, src: Teacher, room_id: int) -> Teacher:
-    t = Teacher(room_id=room_id, source_id=src.id)
-    for col in ("name", "region", "area", "lat", "lng", "radius_km", "qual_type", "qual_detail", "years", "headline",
-                "title", "intro", "experience", "tags", "days", "start_time", "rating", "context",
-                "verified_docs", "verified_crime", "trained", "shadow_visit"):
-        setattr(t, col, getattr(src, col))
-    db.add(t)
-    db.flush()
-    return t
-
 
 def seed_base(db: Session) -> None:
-    if db.scalar(select(Teacher).where(Teacher.room_id.is_(None)).limit(1)):
+    if db.scalar(select(Teacher).limit(1)):
         return
     for row in POOL:
         db.add(_teacher(row))
     db.commit()
-
-
-def new_room_code(db: Session) -> str:
-    alphabet = string.ascii_uppercase.replace("O", "").replace("I", "") + "23456789"
-    while True:
-        code = "".join(secrets.choice(alphabet) for _ in range(6))
-        if not db.scalar(select(Room).where(Room.code == code)):
-            return code
-
-
-def create_room(db: Session) -> tuple[Room, User, User]:
-    room = Room(code=new_room_code(db))
-    db.add(room)
-    db.flush()
-    src = db.scalar(select(Teacher).where(Teacher.room_id.is_(None), Teacher.name == DEFAULT_TEACHER))
-    teacher = clone_for_room(db, src, room.id)
-    guardian = User(room_id=room.id, role="guardian", name="보호자", **DEFAULT_HOME)
-    teacher_user = User(room_id=room.id, role="teacher", name=teacher.name, teacher_id=teacher.id)
-    db.add_all([guardian, teacher_user])
-    db.commit()
-    return room, guardian, teacher_user

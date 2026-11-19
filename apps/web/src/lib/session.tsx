@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ApiError, loadRole, loadRoom, loadTokens, request, saveRole, saveRoom, saveTokens, wsBase, type Role,
+  ApiError, clearLegacy, loadRole, loadTokens, request, saveRole, saveTokens, wsBase, type Role,
 } from "./api";
 
 type RtcHandler = (msg: RtcMessage) => void;
@@ -11,15 +11,18 @@ export type RtcMessage = { type: "rtc"; kind: string; from?: Role; [k: string]: 
 type Session = {
   ready: boolean;
   role: Role | null;
-  room: string | null;
   token: string | null;
   tokens: Partial<Record<Role, string>>;
-  peers: string[];
   version: number;
   connected: boolean;
-  startRoom: () => Promise<void>;
-  joinRoom: (code: string, role: Role) => Promise<void>;
-  switchRole: (role?: Role) => void;
+  /** 보호자로 시작: 이 기기에 새 보호자 계정 */
+  startGuardian: () => Promise<void>;
+  /** 선생님으로 시작: 시연 선생님 계정(기본 김하늘) */
+  startTeacher: (teacherId?: number) => Promise<void>;
+  /** 이미 가진 계정으로 화면만 바꿔요 */
+  activate: (role: Role) => void;
+  /** 한 휴대폰 시연용 역할 전환: 보호자 → 방금 요청한 선생님 계정 */
+  switchRole: (role?: Role) => Promise<void>;
   signOut: () => void;
   api: <T>(path: string, init?: RequestInit & { json?: unknown }) => Promise<T>;
   sendRtc: (msg: Omit<RtcMessage, "type">) => void;
@@ -32,9 +35,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [tokens, setTokens] = useState<Partial<Record<Role, string>>>({});
   const [role, setRole] = useState<Role | null>(null);
-  const [room, setRoom] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
-  const [peers, setPeers] = useState<string[]>([]);
   const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const rtcHandlers = useRef(new Set<RtcHandler>());
@@ -42,7 +43,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setTokens(loadTokens());
     setRole(loadRole());
-    setRoom(loadRoom());
+    clearLegacy();
     setReady(true);
   }, []);
 
@@ -67,7 +68,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       ws.onmessage = (e) => {
         const msg = JSON.parse(e.data);
         if (msg.type === "changed") setVersion((v) => v + 1);
-        else if (msg.type === "presence") setPeers(msg.peers);
         else if (msg.type === "rtc") rtcHandlers.current.forEach((fn) => fn(msg));
       };
       ws.onclose = (e) => {
@@ -87,41 +87,54 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     };
   }, [token, role]);
 
-  const persist = useCallback((t: Partial<Record<Role, string>>, r: Role | null, code: string | null) => {
+  const persist = useCallback((t: Partial<Record<Role, string>>, r: Role | null) => {
     setTokens(t);
     setRole(r);
-    setRoom(code);
     saveTokens(t);
     saveRole(r);
-    saveRoom(code);
   }, []);
 
-  const startRoom = useCallback(async () => {
-    const g = await request<{ code: string; token: string }>("/api/rooms", { method: "POST" });
-    // same device also holds the teacher identity so "역할 전환" works with one phone
-    const t = await request<{ token: string }>(`/api/rooms/${g.code}/join`, { method: "POST", json: { role: "teacher" } });
-    persist({ guardian: g.token, teacher: t.token }, "guardian", g.code);
-  }, [persist]);
+  const startGuardian = useCallback(async () => {
+    const g = await request<{ token: string }>("/api/auth/guardian", { method: "POST" });
+    persist({ ...tokens, guardian: g.token }, "guardian");
+  }, [persist, tokens]);
 
-  const joinRoom = useCallback(async (code: string, r: Role) => {
-    const res = await request<{ code: string; token: string }>(`/api/rooms/${code}/join`, { method: "POST", json: { role: r } });
-    persist({ ...(room === res.code ? tokens : {}), [r]: res.token }, r, res.code);
-  }, [persist, room, tokens]);
+  const startTeacher = useCallback(async (teacherId?: number) => {
+    const t = await request<{ token: string }>("/api/auth/teacher", { method: "POST", json: { teacher_id: teacherId ?? null } });
+    persist({ ...tokens, teacher: t.token }, "teacher");
+  }, [persist, tokens]);
 
-  const switchRole = useCallback((next?: Role) => {
+  const activate = useCallback((next: Role) => {
+    if (!tokens[next]) return;
+    setRole(next);
+    saveRole(next);
+  }, [tokens]);
+
+  const switchRole = useCallback(async (next?: Role) => {
     const target: Role = next ?? (role === "guardian" ? "teacher" : "guardian");
-    if (!tokens[target]) return;
-    setRole(target);
-    saveRole(target);
-  }, [role, tokens]);
+    if (target === "guardian") {
+      if (tokens.guardian) activate("guardian");
+      else await startGuardian();
+      return;
+    }
+    // 보호자가 가장 최근에 요청한 선생님 계정으로 전환해요(없으면 기본 시연 선생님).
+    let teacherId: number | undefined;
+    if (tokens.guardian) {
+      try {
+        const res = await request<{ visits: { teacher: { id: number } }[] }>("/api/visits", { token: tokens.guardian });
+        teacherId = res.visits[0]?.teacher.id;
+      } catch { /* fall back to the default teacher */ }
+    }
+    await startTeacher(teacherId);
+  }, [role, tokens, activate, startGuardian, startTeacher]);
 
-  const signOut = useCallback(() => persist({}, null, null), [persist]);
+  const signOut = useCallback(() => persist({}, null), [persist]);
 
   const api = useCallback(async <T,>(path: string, init: RequestInit & { json?: unknown } = {}) => {
     try {
       return await request<T>(path, { ...init, token });
     } catch (e) {
-      if (e instanceof ApiError && e.status === 401) persist({}, null, null);
+      if (e instanceof ApiError && e.status === 401) persist({}, null);
       throw e;
     }
   }, [token, persist]);
@@ -139,9 +152,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo<Session>(() => ({
-    ready, role, room, token, tokens, peers, version, connected,
-    startRoom, joinRoom, switchRole, signOut, api, sendRtc, onRtc,
-  }), [ready, role, room, token, tokens, peers, version, connected, startRoom, joinRoom, switchRole, signOut, api, sendRtc, onRtc]);
+    ready, role, token, tokens, version, connected,
+    startGuardian, startTeacher, activate, switchRole, signOut, api, sendRtc, onRtc,
+  }), [ready, role, token, tokens, version, connected, startGuardian, startTeacher, activate, switchRole, signOut, api, sendRtc, onRtc]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
@@ -152,7 +165,7 @@ export function useSession(): Session {
   return s;
 }
 
-/** Fetch a resource and refetch whenever the server pushes a change for this room. */
+/** Fetch a resource and refetch whenever the server pushes a change for this account. */
 export function useLive<T>(path: string | null) {
   const { api, version, token } = useSession();
   const [data, setData] = useState<T | null>(null);

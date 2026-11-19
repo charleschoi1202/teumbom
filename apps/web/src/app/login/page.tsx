@@ -1,9 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AppBarDetail, BottomAction, Button, Chip, ErrorText, Info } from "@/components/ui";
+import { request } from "@/lib/api";
 import { useSession } from "@/lib/session";
+
+type Account = { id: number; name: string; headline: string; area: string };
 
 /** A01 · 가입·로그인 (보호자 / 선생님) */
 export default function Login() {
@@ -12,16 +15,29 @@ export default function Login() {
   const [role, setRole] = useState<"guardian" | "teacher">("guardian");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [teacherId, setTeacherId] = useState<number | null>(null);
+
+  useEffect(() => {
+    request<{ teachers: Account[]; default: string }>("/api/auth/teachers")
+      .then((r) => {
+        setAccounts(r.teachers);
+        setTeacherId(r.teachers.find((t) => t.name === r.default)?.id ?? r.teachers[0]?.id ?? null);
+      })
+      .catch(() => {});
+  }, []);
 
   async function go() {
     setBusy(true);
     setErr("");
     try {
-      await s.startRoom();
       if (role === "teacher") {
-        s.switchRole("teacher");
+        await s.startTeacher(teacherId ?? undefined);
         router.push("/t/profile");
-      } else router.push("/g/address");
+      } else {
+        await s.startGuardian();
+        router.push("/g/address");
+      }
     } catch (e) {
       setErr((e as Error).message);
       setBusy(false);
@@ -50,6 +66,17 @@ export default function Login() {
             <p className="t14 text-muted">교원 자격 보유자, 보육교사·아이돌봄사 등 아동 지도 경력이 검증된 분이 활동해요.</p>
           )}
         </div>
+        {role === "teacher" && accounts.length > 0 && (
+          <div className="flex flex-col gap-3">
+            <h3 className="t20 font-bold">시연 선생님 계정</h3>
+            <p className="t14 text-muted">보호자가 이 선생님에게 보낸 방문 요청을 받아요.</p>
+            <div className="flex flex-wrap gap-2">
+              {accounts.map((t) => (
+                <Chip key={t.id} selected={teacherId === t.id} onClick={() => setTeacherId(t.id)}>{t.name} · {t.area}</Chip>
+              ))}
+            </div>
+          </div>
+        )}
         {role === "guardian" && <Info>카카오 실제 인증은 후속 연동 범위입니다.</Info>}
         <ErrorText>{err}</ErrorText>
       </div>

@@ -9,8 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from . import auth
 from .api import router
 from .db import Base, SessionLocal, engine
-from .models import User
-from .realtime import hub
+from .models import Visit
+from .realtime import channel_of, hub, visit_channels
 from .seed import seed_base
 
 logging.basicConfig(level=logging.INFO)
@@ -52,24 +52,26 @@ async def ws_endpoint(ws: WebSocket, token: str = ""):
         return
     with SessionLocal() as db:
         user = auth.resolve(db, data)
-    if not user or not user.room_id:
+    if not user:
         await ws.close(code=4401)
         return
     await ws.accept()
-    room, role = user.room_id, user.role
-    await hub.join(room, ws, role)
-    await hub.send(room, {"type": "presence", "peers": hub.peers(room)})
+    me = channel_of(user)
+    await hub.join(me, ws)
     try:
         while True:
             msg = json.loads(await ws.receive_text())
             if msg.get("type") == "rtc":
-                msg["from"] = role
-                other = "guardian" if role == "teacher" else "teacher"
-                await hub.send(room, msg, skip=ws, role=other)
+                with SessionLocal() as db:
+                    v = db.get(Visit, int(msg.get("visit") or 0))
+                if not v or me not in visit_channels(v):
+                    continue  # only the two people of this visit can signal each other
+                msg["from"] = user.role
+                other = next(ch for ch in visit_channels(v) if ch != me)
+                await hub.send(other, msg)
             elif msg.get("type") == "ping":
                 await ws.send_text('{"type":"pong"}')
-    except (WebSocketDisconnect, json.JSONDecodeError, RuntimeError):
+    except (WebSocketDisconnect, json.JSONDecodeError, RuntimeError, ValueError):
         pass
     finally:
-        hub.leave(room, ws)
-        await hub.send(room, {"type": "presence", "peers": hub.peers(room)})
+        hub.leave(me, ws)

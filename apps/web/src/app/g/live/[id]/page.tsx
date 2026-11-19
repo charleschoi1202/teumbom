@@ -11,7 +11,7 @@ import { useLive, useSession } from "@/lib/session";
 import type { Visit } from "@/lib/types";
 
 const STATE_LABEL: Record<string, string> = {
-  waiting: "선생님 휴대폰의 카메라를 기다리는 중",
+  waiting: "선생님 휴대폰이 연결되면 바로 보여요",
   new: "연결 준비 중",
   connecting: "연결하는 중",
   connected: "실시간 연결됨",
@@ -25,7 +25,7 @@ const STATE_LABEL: Record<string, string> = {
 export default function LiveView({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const visitId = Number(id);
-  const { sendRtc, onRtc, peers } = useSession();
+  const { sendRtc, onRtc } = useSession();
   const { data: v } = useLive<Visit>(`/api/visits/${id}`);
   const { run, busy } = useVisitAction();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -34,7 +34,6 @@ export default function LiveView({ params }: { params: Promise<{ id: string }> }
   const [hasVideo, setHasVideo] = useState(false);
 
   const allowed = !!v && v.status === "live" && v.consent.guardian && v.consent.teacher;
-  const teacherOnline = peers.includes("teacher");
 
   useEffect(() => {
     if (!allowed) return;
@@ -94,7 +93,7 @@ export default function LiveView({ params }: { params: Promise<{ id: string }> }
             <div className="flex aspect-video flex-col items-start justify-end gap-1 p-5 text-white">
               <span className="mb-auto self-center pt-6 text-brand"><Icon name="video" size={40} /></span>
               <p className="t20 font-bold">실시간 영상</p>
-              <p className="t14 opacity-80">{teacherOnline ? STATE_LABEL[state] ?? state : "선생님 휴대폰이 연결되면 바로 보여요"}</p>
+              <p className="t14 opacity-80">{STATE_LABEL[state] ?? state}</p>
             </div>
           )}
           {hasVideo && (

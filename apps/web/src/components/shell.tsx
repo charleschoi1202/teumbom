@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useSession } from "@/lib/session";
 import type { Role } from "@/lib/api";
@@ -55,34 +54,15 @@ export function BottomTabs({ role }: { role: "guardian" | "teacher" }) {
 }
 
 export function RoleSwitchLink() {
-  const { tokens, role, switchRole } = useSession();
+  const { role, switchRole } = useSession();
   const router = useRouter();
+  const [busy, setBusy] = useState(false);
   const other: Role = role === "guardian" ? "teacher" : "guardian";
-  if (!tokens[other]) return null;
   return (
-    <button type="button" className="t14 text-brand lg:hidden" onClick={() => { switchRole(other); router.push(HOME[other]); }}>
+    <button type="button" className="t14 text-brand lg:hidden" disabled={busy}
+      onClick={async () => { setBusy(true); try { await switchRole(other); router.push(HOME[other]); } finally { setBusy(false); } }}>
       역할 전환
     </button>
-  );
-}
-
-function JoinQr({ room }: { room: string }) {
-  const [origin, setOrigin] = useState("");
-  useEffect(() => setOrigin(window.location.origin), []);
-  if (!origin) return null;
-  const url = `${origin}/join?code=${room}&role=teacher`;
-  return (
-    <div className="rounded-xl border border-soft bg-bg p-3">
-      <p className="t14 font-bold">다른 휴대폰을 선생님으로</p>
-      <p className="t14 mt-1 text-muted">카메라로 찍으면 같은 방에 선생님으로 들어와요.</p>
-      <div className="mt-3 flex items-center gap-3">
-        <QRCodeSVG value={url} size={88} level="M" className="rounded bg-white p-1" />
-        <div>
-          <p className="t14 text-muted">방 코드</p>
-          <p className="t20 font-bold tracking-widest">{room}</p>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -98,7 +78,7 @@ export function AppShell({ role, children }: { role: Role; children: ReactNode }
       router.replace("/");
       return;
     }
-    if (s.role !== role) s.switchRole(role);
+    if (s.role !== role) s.activate(role);
   }, [s, role, router]);
 
   if (!s.ready || !s.tokens[role] || s.role !== role) {
@@ -113,7 +93,7 @@ export function AppShell({ role, children }: { role: Role; children: ReactNode }
     <div className="min-h-dvh lg:flex">
       <aside className="hidden w-[240px] shrink-0 flex-col border-r border-soft bg-surface px-5 py-8 lg:flex lg:sticky lg:top-0 lg:h-dvh">
         <Link href={HOME[role]} className="t24 font-bold text-brand">틈봄</Link>
-        <p className="t14 mt-2 text-muted">{roleLabel}{s.room ? ` · 시연 방 ${s.room}` : ""}</p>
+        <p className="t14 mt-2 text-muted">{roleLabel}</p>
         <div className="my-4 h-px bg-soft" />
         <nav className="flex flex-col gap-3" aria-label="주요 메뉴">
           {tabs.map((t) => {
@@ -127,14 +107,11 @@ export function AppShell({ role, children }: { role: Role; children: ReactNode }
             );
           })}
         </nav>
-        {s.tokens[other] && (
-          <button type="button" onClick={() => { s.switchRole(other); router.push(HOME[other]); }}
-            className="t16 mt-5 text-left font-bold text-brand">
-            {other === "teacher" ? "선생님 화면으로 전환" : "보호자 화면으로 전환"}
-          </button>
-        )}
+        <button type="button" onClick={async () => { await s.switchRole(other); router.push(HOME[other]); }}
+          className="t16 mt-5 text-left font-bold text-brand">
+          {other === "teacher" ? "선생님 화면으로 전환" : "보호자 화면으로 전환"}
+        </button>
         <Link href="/" className="t16 mt-3 font-bold text-brand">시연 시작으로</Link>
-        <div className="mt-auto">{role === "guardian" && s.room && <JoinQr room={s.room} />}</div>
       </aside>
       <main className="flex-1">
         <div className={cx("mx-auto w-full max-w-[480px] lg:max-w-[1040px] lg:px-12 lg:pb-16")}>{children}</div>
