@@ -47,7 +47,8 @@ cd apps/web && node scripts/e2e.mjs http://localhost:3000
    - 배포 주소 예: `https://teumbom-api.onrender.com`
    - 무료 플랜은 15분 무사용 시 잠들고 첫 접속에 30~60초가 걸립니다(시작 화면에 “서버를 깨우는 중” 표시).
    - `DATABASE_URL`(Postgres)을 넣지 않으면 SQLite를 써서 재시작 시 시연 데이터가 초기화됩니다.
-2. **웹 — Vercel**: New Project → 이 저장소 → Root Directory `apps/web` → 환경변수 `NEXT_PUBLIC_API_URL=https://teumbom-api.onrender.com` → Deploy
+2. **웹 — Vercel**: 프로젝트 `teumbom`이 이 저장소(Root Directory `apps/web`)에 연결돼 있어 `main`에 푸시하면 자동 배포돼요. 환경변수 `NEXT_PUBLIC_API_URL=https://teumbom-api.onrender.com`
+   - 현재 배포: https://teumbom.vercel.app (API: https://teumbom-api.onrender.com)
 3. **QR**: Vercel 주소를 PC로 열면 시작 화면 오른쪽에 휴대폰용 QR이 표시됩니다. `docs/qr.png`도 생성해 둡니다.
 
 ### 이동통신망에서 영상이 안 보일 때
