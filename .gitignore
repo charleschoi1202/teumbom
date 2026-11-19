@@ -9,3 +9,8 @@ __pycache__/
 .env.local
 .vercel
 test_*.db
+
+# proposal documents copied from the earlier workspace (kept local)
+*.hwp
+/figures/
+/*.pdf
