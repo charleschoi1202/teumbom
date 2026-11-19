@@ -8,8 +8,10 @@ export type Teacher = {
   context: string;
   distance_km: number | null;
   context_matched: string[];
-  qual_type: "certified" | "qualified";
+  qual_type: "certified" | "qualified" | "general";
   qual_label: string;
+  price_single: number;
+  price_regular: number;
   qual_kind: string;
   qual_detail: string;
   years: number;

@@ -60,3 +60,27 @@ export function cityOf(region: string): string {
   const parts = region.split(" ");
   return parts.length >= 2 ? parts.slice(-2).join(" ").replace(/^강원특별자치도 /, "") : region;
 }
+
+/** S03 태그 분류 — 파랑: 아이·선생님 성향, 초록: 지도 능력·이력, 노랑: 교과목 */
+export const TAG_GROUPS = {
+  blue: ["낯가림", "차분한 지도", "활동적인 아이", "집중력", "놀이형 지도"],
+  green: ["숙제 지도", "생활 습관", "학교 준비물"],
+  yellow: ["독서", "수학", "한글·받아쓰기", "영어", "미술"],
+} as const;
+export type TagTone = keyof typeof TAG_GROUPS;
+export const ALL_TAGS: string[] = [...TAG_GROUPS.blue, ...TAG_GROUPS.green, ...TAG_GROUPS.yellow];
+export function tagTone(tag: string): TagTone {
+  if ((TAG_GROUPS.green as readonly string[]).includes(tag)) return "green";
+  if ((TAG_GROUPS.yellow as readonly string[]).includes(tag)) return "yellow";
+  return "blue";
+}
+
+/** 선생님 등급 색: 교원 자격 = 빨강, 아동 지도 자격 = 파랑, 일반(경력·신원 검증) = 초록 */
+export const TIER = {
+  certified: { text: "text-tier-red", bg: "bg-tier-red-bg", border: "border-tier-red", name: "교원 자격" },
+  qualified: { text: "text-tier-blue", bg: "bg-tier-blue-bg", border: "border-tier-blue", name: "아동 지도 자격" },
+  general: { text: "text-tier-green", bg: "bg-tier-green-bg", border: "border-tier-green", name: "일반 · 경력 검증" },
+} as const;
+export function tierOf(qual: string) {
+  return TIER[(qual in TIER ? qual : "general") as keyof typeof TIER];
+}

@@ -52,8 +52,8 @@ THEMES: dict[str, tuple[str, ...]] = {
     "영어": ("영어", "외국어"),
 }
 
-QUAL_WEIGHT = {"certified": 1.0, "qualified": 0.88}
-QUAL_LABEL = {"certified": "교원 자격 확인 완료", "qualified": "아동 지도 자격 확인 완료"}
+QUAL_WEIGHT = {"certified": 1.0, "qualified": 0.88, "general": 0.76}
+QUAL_LABEL = {"certified": "교원 자격 확인 완료", "qualified": "아동 지도 자격 확인 완료", "general": "경력·신원 확인 완료"}
 
 
 def _weekday(iso: str) -> str:

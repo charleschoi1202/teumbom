@@ -4,12 +4,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BottomTabs, Page, RoleSwitchLink } from "@/components/shell";
 import { AppBarRoot, BottomAction, Button, Chip, ErrorText, Field, Info, inputCls, textareaCls } from "@/components/ui";
-import { defaultCriteria, endTime, loadCriteria, saveCriteria, type Criteria } from "@/lib/find";
+import { ALL_TAGS, defaultCriteria, endTime, loadCriteria, saveCriteria, tagTone, type Criteria } from "@/lib/find";
 import { locate } from "@/lib/geo";
 import { useLive, useSession } from "@/lib/session";
 import type { Me } from "@/lib/types";
 
-const ALL_TAGS = ["낯가림", "숙제 지도", "독서", "수학", "한글·받아쓰기", "영어", "놀이형 지도", "차분한 지도", "활동적인 아이", "집중력", "생활 습관", "학교 준비물", "미술"];
 const TIMES = ["13:00", "14:00", "15:00", "16:00", "17:00"];
 
 /** S03 · 어떤 선생님을 찾으세요? (+ S03-tags) */
@@ -108,16 +107,21 @@ export default function Find() {
               <p className="t16 text-muted">요청을 적고 ‘요청에서 태그 찾기’를 누르면{"\n"}성향·과목 조건이 여기에 정리돼요.</p>
             )}
             <div className="flex flex-wrap gap-2">
-              {c.tags.map((t) => <Chip key={t} selected onRemove={() => set({ tags: c.tags.filter((x) => x !== t) })}>{t}</Chip>)}
+              {c.tags.map((t) => <Chip key={t} selected tone={tagTone(t)} onRemove={() => set({ tags: c.tags.filter((x) => x !== t) })}>{t}</Chip>)}
               <Chip onClick={() => setAdding((a) => !a)}>+ 태그 추가</Chip>
             </div>
             {adding && (
               <div className="flex flex-wrap gap-2 rounded-xl border border-soft bg-surface p-3">
                 {ALL_TAGS.filter((t) => !c.tags.includes(t)).map((t) => (
-                  <Chip key={t} onClick={() => set({ tags: [...c.tags, t] })}>{t}</Chip>
+                  <Chip key={t} selected tone={tagTone(t)} onClick={() => set({ tags: [...c.tags, t] })}>{t}</Chip>
                 ))}
               </div>
             )}
+            <p className="t14 flex flex-wrap gap-x-3 gap-y-1 text-muted">
+              <span><span className="mr-1 inline-block h-3 w-3 rounded-sm border border-brand bg-blue-light align-[-1px]" />성향·특성</span>
+              <span><span className="mr-1 inline-block h-3 w-3 rounded-sm border border-tag-green-ink bg-tag-green align-[-1px]" />지도 능력·이력</span>
+              <span><span className="mr-1 inline-block h-3 w-3 rounded-sm border border-tag-yellow-ink bg-tag-yellow align-[-1px]" />교과목</span>
+            </p>
           </div>
         </div>
         <BottomAction aboveTabs>

@@ -52,8 +52,15 @@ def city(region: str) -> str:
     return region.split()[-1] if region else ""
 
 
-QUAL_LABEL = {"certified": "교원 자격 확인 완료", "qualified": "아동 지도 자격 확인 완료"}
-QUAL_KIND = {"certified": "교원 자격", "qualified": "준자격 · 경력 검증"}
+QUAL_LABEL = {"certified": "교원 자격 확인 완료", "qualified": "아동 지도 자격 확인 완료", "general": "경력·신원 확인 완료"}
+QUAL_KIND = {"certified": "교원 자격", "qualified": "준자격 · 경력 검증", "general": "일반 · 경력·신원 검증"}
+# 3시간 단발 기준 금액: 교원 자격 > 아동 지도 자격 > 일반(경력·신원 검증)
+PRICE_SINGLE = {"certified": 70000, "qualified": 60000, "general": 50000}
+
+
+def price_of(t: Teacher, kind: str) -> int:
+    base = PRICE_SINGLE.get(t.qual_type, 60000)
+    return base - 10000 if kind == "regular" else base
 
 
 def teacher_out(t: Teacher, score: int | None = None, reasons: list[str] | None = None, extra: dict | None = None) -> dict:
@@ -62,6 +69,7 @@ def teacher_out(t: Teacher, score: int | None = None, reasons: list[str] | None 
         "radius_km": t.radius_km, "context": t.context,
         "qual_type": t.qual_type, "qual_label": QUAL_LABEL.get(t.qual_type, "자격 확인 완료"),
         "qual_kind": QUAL_KIND.get(t.qual_type, ""), "qual_detail": t.qual_detail, "years": t.years,
+        "price_single": price_of(t, "single"), "price_regular": price_of(t, "regular"),
         "headline": t.headline, "title": t.title, "intro": t.intro, "experience": t.experience,
         "tags": t.tags, "days": t.days, "start_time": t.start_time, "rating": t.rating,
         "verified": {"docs": t.verified_docs, "crime": t.verified_crime, "training": t.trained, "shadow": t.shadow_visit},
@@ -305,7 +313,7 @@ def create_visit(body: VisitIn, user: User = Depends(auth.require("guardian")), 
     if not t:
         raise HTTPException(404, "선생님을 찾을 수 없어요.")
     v = Visit(guardian_id=user.id, teacher_id=t.id, date=body.date, start=body.start,
-              kind=body.kind, price=60000 if body.kind == "regular" else 70000, note=body.note, tags=body.tags)
+              kind=body.kind, price=price_of(t, body.kind), note=body.note, tags=body.tags)
     db.add(v)
     db.commit()
     changed(v)

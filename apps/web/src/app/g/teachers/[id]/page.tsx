@@ -3,8 +3,8 @@
 import { use } from "react";
 import { Icon } from "@/components/Icon";
 import { Page } from "@/components/shell";
-import { AppBarDetail, Avatar, BottomAction, Button, Card, Chip, Info, Loading } from "@/components/ui";
-import { loadCriteria, loadReasons } from "@/lib/find";
+import { AppBarDetail, Avatar, BottomAction, Button, Card, Chip, Info, Loading, cx, won } from "@/components/ui";
+import { loadCriteria, loadReasons, tierOf } from "@/lib/find";
 import { useLive } from "@/lib/session";
 import type { Teacher } from "@/lib/types";
 
@@ -31,7 +31,7 @@ export default function TeacherDetail({ params }: { params: Promise<{ id: string
                     <p className="t16 text-muted">{t.headline}</p>
                   </div>
                 </div>
-                <p className="t16 flex items-center gap-3 font-bold text-brand"><span className="text-brand-deep"><Icon name="shield" /></span>{t.qual_label}</p>
+                <p className={cx("t16 flex items-center gap-3 font-bold", tierOf(t.qual_type).text)}><Icon name="shield" />{t.qual_label} · {won(t.price_single)} / 3시간</p>
                 <p className="t14 text-muted">
                   {[t.verified.training && "표준 교육", t.verified.shadow && "동반 시범 방문 완료"].filter(Boolean).join(" · ")}
                 </p>

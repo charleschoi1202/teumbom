@@ -82,7 +82,8 @@ def test_context_adds_matching_experience():
         assert top["name"] in ("박다솜", "조은솔") and "음악·노래" in top["context_matched"]
         assert top["reasons"][0].startswith("추가 정보와 맞아요")
         # rule-based basics still apply: everyone shown is verified and nearby first
-        assert all(t["qual_type"] in ("certified", "qualified") for t in ctx)
+        assert all(t["qual_type"] in ("certified", "qualified", "general") for t in ctx)
+        assert {t["qual_type"]: t["price_single"] for t in ctx}.get("certified", 70000) == 70000
         assert ctx[0]["distance_km"] is not None and ctx[0]["distance_km"] < 5
 
 

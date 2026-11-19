@@ -10,7 +10,7 @@ import { useLive, useSession } from "@/lib/session";
 import type { Me } from "@/lib/types";
 
 const RADII = [1, 3, 5, 10];
-const DAYS = ["월", "화", "수", "목", "금"];
+const DAYS = ["월", "화", "수", "목", "금", "토", "일"];
 const TIMES = ["13:00", "14:00", "15:00", "16:00"];
 
 /** A04 · 방문 가능 일정 */

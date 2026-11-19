@@ -34,12 +34,20 @@ export function TextLink({ href, onClick, children, className }: { href?: string
 }
 
 /* ── Chip ── */
-export function Chip({ selected, disabled, children, onClick, onRemove }:
-  { selected?: boolean; disabled?: boolean; children: ReactNode; onClick?: () => void; onRemove?: () => void }) {
+export type ChipTone = "blue" | "green" | "yellow";
+/** 선택된 칩 색: 파랑(성향·특성) · 초록(지도 능력·이력) · 노랑(교과목) */
+const CHIP_TONE: Record<ChipTone, string> = {
+  blue: "bg-blue-light border-brand text-brand",
+  green: "bg-tag-green border-tag-green-ink text-tag-green-ink",
+  yellow: "bg-tag-yellow border-tag-yellow-ink text-tag-yellow-ink",
+};
+
+export function Chip({ selected, disabled, children, onClick, onRemove, tone = "blue" }:
+  { selected?: boolean; disabled?: boolean; children: ReactNode; onClick?: () => void; onRemove?: () => void; tone?: ChipTone }) {
   return (
     <button type="button" disabled={disabled} onClick={onClick}
       className={cx("t14 h-12 px-4 rounded-[10px] border inline-flex items-center gap-1 whitespace-nowrap",
-        selected ? "bg-blue-light border-brand text-brand" : disabled ? "bg-disabled border-soft text-muted" : "bg-surface border-soft text-muted")}>
+        selected ? CHIP_TONE[tone] : disabled ? "bg-disabled border-soft text-muted" : "bg-surface border-soft text-muted")}>
       {children}
       {onRemove && (
         <span role="button" aria-label="태그 빼기" onClick={(e) => { e.stopPropagation(); onRemove(); }} className="ml-0.5 text-[15px] leading-none">×</span>

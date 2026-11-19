@@ -37,7 +37,7 @@ export default function RequestVisit({ params }: { params: Promise<{ id: string 
     }
   }
 
-  const price = kind === "regular" ? 60000 : 70000;
+  const price = t ? (kind === "regular" ? t.price_regular : t.price_single) : 0;
 
   return (
     <>
@@ -54,8 +54,8 @@ export default function RequestVisit({ params }: { params: Promise<{ id: string 
               <div className="flex flex-col gap-3">
                 <h2 className="t20 font-bold">이용 유형</h2>
                 <div className="flex gap-2">
-                  <Chip selected={kind === "single"} onClick={() => setKind("single")}>단발 70,000원</Chip>
-                  <Chip selected={kind === "regular"} onClick={() => setKind("regular")}>정기 60,000원</Chip>
+                  <Chip selected={kind === "single"} onClick={() => setKind("single")}>단발 {won(t.price_single)}</Chip>
+                  <Chip selected={kind === "regular"} onClick={() => setKind("regular")}>정기 {won(t.price_regular)}</Chip>
                 </div>
                 <p className="t14 text-muted">
                   {kind === "single" ? "단발 · 아이 한 명 · 3시간\n필요할 때 한 번 이용해요." : "같은 선생님과 주 1회 이상 · 4주 이상 예약할 때 적용돼요.\n이번 시연에서는 첫 방문만 요청해요."}

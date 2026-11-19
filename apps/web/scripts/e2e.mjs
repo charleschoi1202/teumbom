@@ -93,7 +93,7 @@ try {
   await waitText(G, "낯가림");
   await shot(G, "m03_S03_find_tags");
   await click(G, "이 조건으로 찾기");
-  await waitText(G, "점");
+  await waitText(G, "%");
   await waitText(G, "김하늘 선생님");
   await shot(G, "m04_S04_recommend");
   check("extra context reason shown", (await G.evaluate(() => document.body.innerText)).includes("추가 정보와 맞아요"));
