@@ -32,7 +32,7 @@ export default function Find() {
 
   if (!c) return <><AppBarRoot title="어떤 선생님을 찾으세요?" /><BottomTabs role="guardian" /></>;
 
-  const set = (patch: Partial<Criteria>) => setC({ ...c, ...patch });
+  const set = (patch: Partial<Criteria>) => setC((prev) => ({ ...(prev ?? c), ...patch }));
 
   async function findTags() {
     setBusy(true);
