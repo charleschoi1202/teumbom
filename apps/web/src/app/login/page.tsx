@@ -47,7 +47,7 @@ export default function Login() {
             {role === "guardian" ? <>아이에게 필요한 돌봄을 찾고<br />선생님의 방문 기록을 받아요.</> : <>지역 가정을 방문하고<br />아이의 활동을 기록해요.</>}
           </p>
           {role === "teacher" && (
-            <p className="t14 text-muted">자격증이 없어도 괜찮아요. 곤충·음악·요리처럼 내가 즐겨 온 것과 살아온 이야기로 아이와 만나요. 신원 확인과 범죄경력 조회는 필수예요.</p>
+            <p className="t14 text-muted">교원 자격 보유자, 보육교사·아이돌봄사 등 아동 지도 경력이 검증된 분이 활동해요.</p>
           )}
         </div>
         {role === "guardian" && <Info>카카오 실제 인증은 후속 연동 범위입니다.</Info>}

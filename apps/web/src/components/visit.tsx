@@ -8,20 +8,19 @@ import { Avatar, Badge, Button, Card, CheckRow, ErrorText, Info, Overlay, PhaseB
 
 export function VisitCard({ v, as = "guardian", price }: { v: Visit; as?: "guardian" | "teacher"; price?: boolean }) {
   const name = as === "guardian" ? `${v.teacher.name} 선생님` : v.household;
-  const sub = as === "guardian" ? `${v.teacher.background} · ${v.child_desc}` : v.child_desc;
   const initial = as === "guardian" ? v.teacher.initial : "보";
   return (
     <Card className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <PhaseBadge phase={v.phase} />
-        {as === "guardian" && v.consent.guardian && <span className="t14 text-muted">영상 공유 선택</span>}
+        {v.simulated_teacher && as === "guardian" && <span className="t14 text-muted">자동 응답 선생님</span>}
       </div>
       <p className="t16 font-bold">{v.date_label} {v.time_label}</p>
       <div className="flex items-center gap-3">
         <Avatar initial={initial} size={40} />
         <div>
           <p className="t16 font-bold">{name}</p>
-          <p className="t14 text-muted">{sub}</p>
+          <p className="t14 text-muted">{v.child_desc}</p>
         </div>
       </div>
       {price && (
@@ -91,19 +90,13 @@ export function PayDialog({ v, open, onClose, onPaid }: { v: Visit; open: boolea
   );
 }
 
-/** 영상 공유·녹화는 모두 선택이에요. 두 사람이 모두 고른 경우에만 켜져요. */
 export function ConsentRow({ v, as }: { v: Visit; as: "guardian" | "teacher" }) {
   const { run, busy } = useVisitAction();
   const value = as === "guardian" ? v.consent.guardian : v.consent.teacher;
-  const rec = as === "guardian" ? v.consent.record_guardian : v.consent.record_teacher;
   return (
-    <div aria-busy={busy} className="flex flex-col">
-      <CheckRow checked={value} label="실시간 영상 공유 (선택)"
-        onChange={(next) => run(`/api/visits/${v.id}/consent`, { value: next, record: next ? rec : false })} />
-      {value && (
-        <CheckRow checked={rec} label="녹화도 허용 (선택 · 보호자 휴대폰에만 저장)"
-          onChange={(next) => run(`/api/visits/${v.id}/consent`, { value: true, record: next })} />
-      )}
+    <div aria-busy={busy}>
+      <CheckRow checked={value} label="이번 방문의 영상 공유에 동의해요"
+        onChange={(next) => run(`/api/visits/${v.id}/consent`, { value: next })} />
     </div>
   );
 }
@@ -128,7 +121,7 @@ export function GuardianVisitBody({ v }: { v: Visit }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {v.phase === "requested" && <Info>{name} 선생님이 방문 요청을 확인하고 있어요.{"\n"}수락하면 결제할 수 있어요.{"\n"}(시연: 선생님 휴대폰이나 ‘역할 전환’으로 수락해 보세요)</Info>}
+      {v.phase === "requested" && <Info>선생님이 방문 요청을 확인하고 있어요.{"\n"}수락하면 결제할 수 있어요.</Info>}
       {v.phase === "payment" && (
         <>
           <Info>{name} 선생님이 수락했어요.{"\n"}모의 결제를 마치면 방문이 확정돼요.</Info>
@@ -177,7 +170,7 @@ export function GuardianVisitBody({ v }: { v: Visit }) {
       )}
       {v.phase === "live" && (
         <>
-          <Info>{name} 선생님이 방문 중이에요.{"\n"}{v.consent.guardian && v.consent.teacher ? "두 분 모두 영상 공유를 선택했어요." : "영상 공유 없이 진행하는 방문이에요. 끝나면 리포트로 알려 드려요."}</Info>
+          <Info>{name} 선생님이 방문 중이에요.{"\n"}{v.consent.guardian && v.consent.teacher ? "양측 영상 공유 동의가 완료됐어요." : "영상 공유 동의가 없는 방문이에요."}</Info>
           {v.consent.guardian && v.consent.teacher
             ? <Button href={`/g/live/${v.id}`}>실시간 보기</Button>
             : <ConsentRow v={v} as="guardian" />}

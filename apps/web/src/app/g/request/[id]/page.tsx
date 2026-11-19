@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useEffect, useState } from "react";
 import { Page } from "@/components/shell";
-import { AppBarDetail, BottomAction, Button, Card, CheckRow, Chip, ErrorText, Field, Loading, inputCls, won } from "@/components/ui";
+import { AppBarDetail, BottomAction, Button, Card, Chip, ErrorText, Field, Loading, inputCls, won } from "@/components/ui";
 import { cityOf, defaultCriteria, endTime, loadCriteria, longDate, type Criteria } from "@/lib/find";
 import { useLive, useSession } from "@/lib/session";
 import type { Me, Teacher, Visit } from "@/lib/types";
@@ -18,26 +18,18 @@ export default function RequestVisit({ params }: { params: Promise<{ id: string 
   const { data: me } = useLive<Me>("/api/me");
   const [c, setC] = useState<Criteria | null>(null);
   const [kind, setKind] = useState<"single" | "regular">("single");
-  const [note, setNote] = useState("");
-  const [video, setVideo] = useState(false);
-  const [record, setRecord] = useState(false);
+  const [note, setNote] = useState("숙제를 먼저 확인한 뒤 책을 읽어 주세요.");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
-  useEffect(() => {
-    if (!me) return;
-    const crit = loadCriteria() ?? defaultCriteria(me.household.region);
-    setC(crit);
-    setVideo(!!crit.video);
-    setRecord(!!crit.record);
-  }, [me]);
+  useEffect(() => { if (me) setC(loadCriteria() ?? defaultCriteria(me.household.region)); }, [me]);
 
   async function send() {
     if (!c || !t) return;
     setBusy(true);
     setErr("");
     try {
-      await api<Visit>("/api/visits", { method: "POST", json: { teacher_id: t.id, date: c.date, start: c.start, kind, note, tags: c.tags, video, record: video && record } });
+      await api<Visit>("/api/visits", { method: "POST", json: { teacher_id: t.id, date: c.date, start: c.start, kind, note, tags: c.tags } });
       router.push("/g/visits");
     } catch (e) {
       setErr((e as Error).message);
@@ -57,8 +49,7 @@ export default function RequestVisit({ params }: { params: Promise<{ id: string 
               <Card className="flex flex-col gap-2">
                 <p className="t20 font-bold">{t.name} 선생님</p>
                 <p className="t16 font-bold">{longDate(c.date)} {c.start}–{endTime(c.start)}</p>
-                <p className="t14 text-muted">{t.background} · {cityOf(c.region)} · {me.household.child_desc}</p>
-                {c.tags.length > 0 && <p className="t14 text-brand">{c.tags.join(" · ")}</p>}
+                <p className="t14 text-muted">{cityOf(c.region)} · {me.household.child_desc}</p>
               </Card>
               <div className="flex flex-col gap-3">
                 <h2 className="t20 font-bold">이용 유형</h2>
@@ -77,13 +68,8 @@ export default function RequestVisit({ params }: { params: Promise<{ id: string 
                 <Link href="/g/address" className="t16 font-bold text-brand">방문지 변경</Link>
               </Card>
               <Field label="선생님께 전할 메모 · 선택">
-                <input className={inputCls} value={note} maxLength={300} placeholder="예: 개미 관찰을 정말 좋아해요." onChange={(e) => setNote(e.target.value)} />
+                <input className={inputCls} value={note} maxLength={300} onChange={(e) => setNote(e.target.value)} />
               </Field>
-              <div className="rounded-xl border border-soft bg-surface px-3">
-                <CheckRow checked={video} onChange={(v) => { setVideo(v); if (!v) setRecord(false); }} label="실시간 영상 공유 (선택)" />
-                {video && <CheckRow checked={record} onChange={setRecord} label="녹화도 원해요 (선택 · 보호자 휴대폰에만 저장)" />}
-              </div>
-              <p className="t14 -mt-3 text-muted">영상은 선생님도 동의해야 켜져요. 고르지 않아도 방문과 리포트는 그대로예요.</p>
               <div className="t16 flex items-center justify-between"><span className="text-muted">이용 금액</span><b>{won(price)}</b></div>
               <ErrorText>{err}</ErrorText>
             </div>

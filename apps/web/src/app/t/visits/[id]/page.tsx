@@ -58,8 +58,8 @@ export default function VisitTasks({ params }: { params: Promise<{ id: string }>
               <Card className="flex flex-col gap-1">
                 <ConsentRow v={v} as="teacher" />
                 <p className="t14 text-muted">
-                  {v.consent.guardian ? `보호자가 영상 공유를 선택했어요${v.consent.record_guardian ? " (녹화 포함)" : ""}.` : "보호자는 영상 공유를 선택하지 않았어요."}{"\n"}
-                  영상은 선택이에요. 두 분 모두 고르면 방문 시작과 함께 이 휴대폰 카메라 영상이 보호자에게 실시간으로 전송돼요. 녹화는 두 분 모두 허용한 경우에만 보호자 휴대폰에 저장돼요.
+                  {v.consent.guardian ? "보호자는 영상 공유에 동의했어요." : "보호자가 아직 영상 공유에 동의하지 않았어요."}{"\n"}
+                  둘 다 동의하면 방문 시작과 함께 이 휴대폰 카메라 영상이 보호자에게 실시간으로 전송돼요. 녹화하지 않아요.
                 </p>
               </Card>
             )}

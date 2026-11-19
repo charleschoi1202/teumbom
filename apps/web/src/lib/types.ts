@@ -3,13 +3,14 @@ export type Teacher = {
   name: string;
   initial: string;
   region: string;
-  background: string;
-  story: string;
-  interests: string[];
-  traits: string[];
-  qual_type: "certified" | "qualified" | "none";
+  area: string;
+  radius_km: number;
+  context: string;
+  distance_km: number | null;
+  context_matched: string[];
+  qual_type: "certified" | "qualified";
   qual_label: string;
-  safety_label: string;
+  qual_kind: string;
   qual_detail: string;
   years: number;
   headline: string;
@@ -23,7 +24,6 @@ export type Teacher = {
   verified: { docs: boolean; crime: boolean; training: boolean; shadow: boolean };
   score: number | null;
   reasons: string[];
-  matched: string[];
 };
 
 export type VisitStatus = "requested" | "declined" | "payment" | "booked" | "live" | "draft" | "sent" | "cancelled";
@@ -61,13 +61,13 @@ export type Visit = {
   child_desc: string;
   region: string;
   address: string | null;
-  consent: { guardian: boolean; teacher: boolean; record_guardian: boolean; record_teacher: boolean };
+  consent: { guardian: boolean; teacher: boolean };
   video_state: "off" | "ready" | "live" | "stopped";
   started_at: string;
   finished_at: string;
   tasks: Task[];
   notice: { id: number; status: "review" | "approved"; title: string; teacher_count: number; guardian_count: number } | null;
-  record: { homework: number | null; reading_min: number | null; memo: string; theme_activity: string; theme_min: number | null } | null;
+  record: { homework: number | null; reading_min: number | null; memo: string } | null;
   report: { sent: boolean; sent_at: string; message: string | null } | null;
 };
 
@@ -115,16 +115,14 @@ export type ReportItem = {
   reading_min: number | null;
   school_done: string[];
   activity: string[];
-  theme_activity: string;
-  theme_min: number | null;
 };
 
 export type Me = {
   id: number;
-  role: "guardian" | "teacher" | "admin";
+  role: "guardian" | "teacher";
   name: string;
   room: string | null;
   peers: string[];
-  household: { region: string; address: string; address_detail: string; child_desc: string };
+  household: { region: string; area: string; lat: number | null; lng: number | null; address: string; address_detail: string; child_desc: string };
   teacher: Teacher | null;
 };

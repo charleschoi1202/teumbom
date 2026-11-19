@@ -5,10 +5,11 @@ import { useEffect, useState } from "react";
 import { Page } from "@/components/shell";
 import { AppBarDetail, BottomAction, Button, Chip, ErrorText, Field, Info, inputCls } from "@/components/ui";
 import { endTime } from "@/lib/find";
+import { locate } from "@/lib/geo";
 import { useLive, useSession } from "@/lib/session";
 import type { Me } from "@/lib/types";
 
-const CITIES = ["춘천시", "원주시", "강릉시", "속초시", "홍천군", "화천군"];
+const RADII = [1, 3, 5, 10];
 const DAYS = ["월", "화", "수", "목", "금"];
 const TIMES = ["13:00", "14:00", "15:00", "16:00"];
 
@@ -17,20 +18,29 @@ export default function Schedule() {
   const { api } = useSession();
   const router = useRouter();
   const { data: me } = useLive<Me>("/api/me");
-  const [region, setRegion] = useState("춘천시");
+  const [place, setPlace] = useState({ region: "", area: "", lat: null as number | null, lng: null as number | null });
+  const [radius, setRadius] = useState(5);
+  const [locating, setLocating] = useState(false);
   const [days, setDays] = useState<string[]>([]);
   const [start, setStart] = useState("15:00");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   useEffect(() => {
-    if (me?.teacher) { setRegion(me.teacher.region); setDays(me.teacher.days); setStart(me.teacher.start_time); }
+    if (me?.teacher) {
+      const t = me.teacher;
+      setPlace({ region: t.region, area: t.area, lat: null, lng: null });
+      setRadius(t.radius_km);
+      setDays(t.days);
+      setStart(t.start_time);
+    }
   }, [me]);
 
   async function save() {
     setBusy(true);
     setErr("");
     try {
-      await api("/api/me/teacher", { method: "PATCH", json: { region, days, start_time: start } });
+      const loc = place.lat != null ? { region: place.region, area: place.area, lat: place.lat, lng: place.lng } : {};
+      await api("/api/me/teacher", { method: "PATCH", json: { ...loc, radius_km: radius, days, start_time: start } });
       router.push("/t/visits");
     } catch (e) {
       setErr((e as Error).message);
@@ -43,7 +53,20 @@ export default function Schedule() {
       <AppBarDetail title="방문 가능 일정" back="/t/visits" />
       <Page className="lg:max-w-[560px]">
         <h2 className="t20 font-bold">방문 가능한 지역</h2>
-        <div className="flex flex-wrap gap-2">{CITIES.map((c) => <Chip key={c} selected={region === c} onClick={() => setRegion(c)}>{c}</Chip>)}</div>
+        <p className="t16">{place.region} {place.area} 중심</p>
+        <button type="button" disabled={locating} className="t14 -mt-3 self-start font-bold text-brand" onClick={async () => {
+          setLocating(true);
+          setErr("");
+          try {
+            const p = await locate();
+            setPlace({ region: p.city || p.region, area: p.area, lat: p.lat, lng: p.lng });
+          } catch (e) {
+            setErr((e as Error).message);
+          } finally {
+            setLocating(false);
+          }
+        }}>{locating ? "내 위치를 찾는 중…" : "현재 위치로 설정"}</button>
+        <div className="flex flex-wrap gap-2">{RADII.map((r) => <Chip key={r} selected={radius === r} onClick={() => setRadius(r)}>반경 {r}km</Chip>)}</div>
         <h2 className="t20 font-bold">방문 가능한 요일</h2>
         <div className="flex flex-wrap gap-2">
           {DAYS.map((d) => (

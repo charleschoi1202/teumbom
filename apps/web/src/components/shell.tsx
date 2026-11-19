@@ -19,14 +19,10 @@ export const GUARDIAN_TABS: Tab[] = [
 ];
 export const TEACHER_TABS: Tab[] = [
   { href: "/t/visits", label: "방문 일정", icon: "calendar", match: ["/t/visits", "/t/schedule"] },
-  { href: "/t/credential", label: "내 프로필", icon: "shield", match: ["/t/credential", "/t/profile"] },
-];
-const ADMIN_TABS: Tab[] = [
-  { href: "/admin/reviews", label: "선생님 확인 심사", icon: "shield", match: ["/admin/reviews"] },
-  { href: "/admin/alerts", label: "운영 경보", icon: "bell", match: ["/admin/alerts"] },
+  { href: "/t/credential", label: "교원 자격", icon: "shield", match: ["/t/credential", "/t/profile"] },
 ];
 
-const HOME: Record<Role, string> = { guardian: "/g/home", teacher: "/t/visits", admin: "/admin/reviews" };
+const HOME: Record<Role, string> = { guardian: "/g/home", teacher: "/t/visits" };
 
 function active(path: string, tab: Tab) {
   return tab.match.some((m) => path === m || path.startsWith(m + "/"));
@@ -99,7 +95,7 @@ export function AppShell({ role, children }: { role: Role; children: ReactNode }
   useEffect(() => {
     if (!s.ready) return;
     if (!s.tokens[role]) {
-      router.replace(role === "admin" ? "/admin" : "/");
+      router.replace("/");
       return;
     }
     if (s.role !== role) s.switchRole(role);
@@ -109,15 +105,15 @@ export function AppShell({ role, children }: { role: Role; children: ReactNode }
     return <div className="t14 flex min-h-dvh items-center justify-center text-muted">불러오는 중이에요…</div>;
   }
 
-  const tabs = role === "guardian" ? GUARDIAN_TABS : role === "teacher" ? TEACHER_TABS : ADMIN_TABS;
+  const tabs = role === "guardian" ? GUARDIAN_TABS : TEACHER_TABS;
   const other: Role = role === "guardian" ? "teacher" : "guardian";
-  const roleLabel = role === "guardian" ? "보호자" : role === "teacher" ? "선생님" : "운영자 웹 시연";
+  const roleLabel = role === "guardian" ? "보호자" : "선생님";
 
   return (
     <div className="min-h-dvh lg:flex">
       <aside className="hidden w-[240px] shrink-0 flex-col border-r border-soft bg-surface px-5 py-8 lg:flex lg:sticky lg:top-0 lg:h-dvh">
         <Link href={HOME[role]} className="t24 font-bold text-brand">틈봄</Link>
-        <p className="t14 mt-2 text-muted">{roleLabel}{s.room && role !== "admin" ? ` · 시연 방 ${s.room}` : ""}</p>
+        <p className="t14 mt-2 text-muted">{roleLabel}{s.room ? ` · 시연 방 ${s.room}` : ""}</p>
         <div className="my-4 h-px bg-soft" />
         <nav className="flex flex-col gap-3" aria-label="주요 메뉴">
           {tabs.map((t) => {
@@ -131,7 +127,7 @@ export function AppShell({ role, children }: { role: Role; children: ReactNode }
             );
           })}
         </nav>
-        {role !== "admin" && s.tokens[other] && (
+        {s.tokens[other] && (
           <button type="button" onClick={() => { s.switchRole(other); router.push(HOME[other]); }}
             className="t16 mt-5 text-left font-bold text-brand">
             {other === "teacher" ? "선생님 화면으로 전환" : "보호자 화면으로 전환"}

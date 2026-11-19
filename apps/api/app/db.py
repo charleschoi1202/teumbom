@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from collections.abc import Iterator
 
 from sqlalchemy import create_engine
@@ -6,7 +7,8 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 
 def _database_url() -> str:
-    url = os.getenv("DATABASE_URL", "sqlite:///./teumbom.db")
+    default = "sqlite:///" + str(Path(__file__).resolve().parent.parent / "teumbom.db").replace("\\", "/")
+    url = os.getenv("DATABASE_URL", default)
     # Render/Neon hand out postgres:// URLs; SQLAlchemy + psycopg3 wants postgresql+psycopg://
     if url.startswith("postgres://"):
         url = "postgresql+psycopg://" + url[len("postgres://"):]

@@ -21,20 +21,17 @@ def test_full_visit_flow():
         g = h(room["token"])
         t = h(c.post(f"/api/rooms/{room['code']}/join", json={"role": "teacher"}).json()["token"])
 
-        text = "곤충이랑 식물을 좋아해요. 낯을 가려요."
-        tags = c.post("/api/match/tags", headers=g, json={"text": text}).json()["tags"]
-        assert "곤충" in tags and "낯가림" in tags
+        tags = c.post("/api/match/tags", headers=g, json={"text": "낯을 가려요. 숙제를 차분히 도와주시면 좋겠어요."}).json()["tags"]
+        assert "낯가림" in tags and "숙제 지도" in tags
 
-        rec = c.post("/api/match/recommend", headers=g,
-                     json={"date": "2026-11-20", "start": "15:00", "text": text, "tags": tags}).json()
+        rec = c.post("/api/match/recommend", headers=g, json={"date": "2026-11-20", "start": "15:00", "tags": tags}).json()
         top = rec["teachers"][0]
-        assert top["name"] == "한도윤" and top["score"] >= 70 and top["reasons"] and "곤충" in top["matched"]
+        assert top["name"] == "김하늘" and top["score"] >= 80 and top["reasons"]
+        assert top["area"] == "석사동" and top["distance_km"] is not None
 
         v = c.post("/api/visits", headers=g, json={"teacher_id": top["id"], "date": "2026-11-20", "start": "15:00",
-                                                   "note": "밖에서 관찰하는 걸 좋아해요.", "tags": tags,
-                                                   "video": True, "record": False}).json()
-        assert v["status"] == "requested" and v["consent"]["guardian"] is True
-        assert c.get("/api/me", headers=t).json()["name"] == "한도윤"  # teacher phone becomes the picked caregiver
+                                                   "note": "숙제를 먼저 확인한 뒤 책을 읽어 주세요."}).json()
+        assert v["status"] == "requested" and v["household"] == "석사동 보호자 가정"
         assert c.get(f"/api/visits/{v['id']}", headers=t).json()["address"] is None  # 주소는 확정 전 비공개
 
         assert c.post(f"/api/visits/{v['id']}/accept", headers=t).json()["status"] == "payment"
@@ -53,17 +50,17 @@ def test_full_visit_flow():
         teacher_view = c.get(f"/api/visits/{v['id']}", headers=t).json()
         assert all(task["owner"] == "teacher" for task in teacher_view["tasks"])  # 납부·서명은 선생님에게 안 감
 
+        c.post(f"/api/visits/{v['id']}/consent", headers=g, json={"value": True})
         c.post(f"/api/visits/{v['id']}/consent", headers=t, json={"value": True})
         live = c.post(f"/api/visits/{v['id']}/start", headers=t).json()
         assert live["status"] == "live" and live["video_state"] == "ready"
         for task in live["tasks"]:
-            if task["title"] in ("독서 기록장 챙기기", "곤충 활동 함께하기", "귀가 전 안전 확인"):
+            if task["title"] in ("독서 기록장 챙기기", "숙제 확인", "독서"):
                 c.patch(f"/api/tasks/{task['id']}", headers=t, json={"done": True})
-        c.put(f"/api/visits/{v['id']}/record", headers=t,
-              json={"homework": 2, "reading_min": 20, "memo": "", "theme_activity": "개미 관찰", "theme_min": 30})
+        c.put(f"/api/visits/{v['id']}/record", headers=t, json={"homework": 2, "reading_min": 20, "memo": ""})
         c.post(f"/api/visits/{v['id']}/finish", headers=t)
         draft = c.post(f"/api/visits/{v['id']}/report/draft", headers=t).json()
-        assert draft["message"].startswith("오늘은 30분 동안 개미 관찰을 함께 했어요. 숙제 2개를 확인하고, 책을 20분 동안 읽었어요.")
+        assert draft["message"].startswith("숙제 2개를 확인하고, 책을 20분 동안 읽었어요.")
         assert "독서 기록장" in draft["message"]
         assert "숙제 2개 · 독서 20분" in draft["activity"]
 
@@ -74,17 +71,29 @@ def test_full_visit_flow():
         assert reports["week"]["reading_min"] == 20
 
 
-def test_admin_review_and_alert():
+def test_context_adds_matching_experience():
     with TestClient(app) as c:
-        a = h(c.post("/api/auth/admin").json()["token"])
-        r = c.get("/api/admin/reviews", headers=a).json()["reviews"][0]
-        assert r["extracted"]["name"] == "이가람" and "정교사(2급)" in r["extracted"]["qualification"]
-        exp = c.get("/api/admin/reviews", headers=a).json()["reviews"][2]["extracted"]
-        assert exp["qual_type"] == "none" and exp["crime"] == "해당 없음 확인"
-        assert c.post(f"/api/admin/reviews/{r['id']}", headers=a, json={"action": "approve"}).status_code == 409
-        c.post(f"/api/admin/reviews/{r['id']}", headers=a, json={"checked_original": True, "checked_crime": True})
-        assert c.post(f"/api/admin/reviews/{r['id']}", headers=a, json={"action": "approve"}).json()["status"] == "approved"
-        al = c.get("/api/admin/alerts", headers=a).json()["alerts"][0]
-        done = c.post(f"/api/admin/alerts/{al['id']}", headers=a,
-                      json={"action": "연락 후 확인", "memo": "선생님에게 도착 시각을 확인했어요.", "resolve": True}).json()
-        assert done["status"] == "resolved"
+        g = h(c.post("/api/rooms").json()["token"])
+        base = {"date": "2026-11-20", "start": "15:00", "tags": ["숙제 지도"]}
+        plain = c.post("/api/match/recommend", headers=g, json=base).json()["teachers"]
+        assert all("추가 정보" not in r for t in plain for r in t["reasons"])
+        ctx = c.post("/api/match/recommend", headers=g,
+                     json={**base, "context": "노래 부르는 걸 좋아하고 피아노에 관심이 있어요."}).json()["teachers"]
+        top = ctx[0]
+        assert top["name"] in ("박다솜", "조은솔") and "음악·노래" in top["context_matched"]
+        assert top["reasons"][0].startswith("추가 정보와 맞아요")
+        # rule-based basics still apply: everyone shown is verified and nearby first
+        assert all(t["qual_type"] in ("certified", "qualified") for t in ctx)
+        assert ctx[0]["distance_km"] is not None and ctx[0]["distance_km"] < 5
+
+
+def test_distance_uses_my_location():
+    with TestClient(app) as c:
+        g = h(c.post("/api/rooms").json()["token"])
+        # move the household to 원주 무실동 → 원주 teachers become the available ones
+        c.patch("/api/me/household", headers=g, json={"region": "강원특별자치도 원주시 무실동", "area": "무실동",
+                                                      "address": "원주시 예시로 1", "address_detail": "101호",
+                                                      "lat": 37.3330, "lng": 127.9300})
+        ts = c.post("/api/match/recommend", headers=g, json={"date": "2026-11-20", "start": "15:00", "tags": ["숙제 지도"]}).json()["teachers"]
+        assert ts[0]["region"] == "원주시" and ts[0]["distance_km"] < 5
+        assert any("무실동" in r or "단구동" in r or "명륜동" in r for r in ts[0]["reasons"])

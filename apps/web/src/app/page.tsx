@@ -86,7 +86,6 @@ export default function Start() {
             <Button kind="text" href="/login">내 계정으로 시작하기</Button>
             <Link href="/join" className="t16 text-center font-bold text-brand">방 코드로 선생님 참여하기</Link>
           </div>
-          <Link href="/admin" className="t16 font-bold text-brand">운영자 웹 시연 보기</Link>
         </div>
       </div>
 

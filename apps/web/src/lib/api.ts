@@ -1,4 +1,4 @@
-export type Role = "guardian" | "teacher" | "admin";
+export type Role = "guardian" | "teacher";
 
 export function apiBase(): string {
   const env = process.env.NEXT_PUBLIC_API_URL;

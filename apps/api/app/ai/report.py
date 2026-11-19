@@ -11,8 +11,7 @@ import re
 from . import llm
 
 
-def facts(tasks, homework: int | None, reading_min: int | None, memo: str,
-          theme_activity: str = "", theme_min: int | None = None) -> dict:
+def facts(tasks, homework: int | None, reading_min: int | None, memo: str) -> dict:
     done_school = [t.title for t in tasks if t.kind == "school" and t.owner == "teacher" and t.done]
     done_basic = [t.title for t in tasks if t.kind == "basic" and t.done]
     return {
@@ -21,31 +20,22 @@ def facts(tasks, homework: int | None, reading_min: int | None, memo: str,
         "school_done": done_school,
         "basic_done": done_basic,
         "memo": (memo or "").strip(),
-        "theme_activity": (theme_activity or "").strip(),
-        "theme_min": theme_min,
     }
 
 
 def activity_lines(f: dict) -> list[str]:
-    lines0 = []
-    if f.get("theme_activity"):
-        lines0.append(f["theme_activity"] + (f" {f['theme_min']}분" if f.get("theme_min") else ""))
     parts = []
     if f["homework"]:
         parts.append(f"숙제 {f['homework']}개")
     if f["reading_min"]:
         parts.append(f"독서 {f['reading_min']}분")
-    lines = lines0 + ([" · ".join(parts)] if parts else [])
+    lines = [" · ".join(parts)] if parts else []
     lines += [f"{t} · 완료" for t in f["school_done"]]
     return lines
 
 
 def draft(f: dict) -> str:
     sents = []
-    act = f.get("theme_activity")
-    if act:
-        tail = f" {f['theme_min']}분 동안" if f.get("theme_min") else ""
-        sents.append(f"오늘은{tail} {act}{'을' if _has_batchim(act) else '를'} 함께 했어요.")
     if f["homework"] and f["reading_min"]:
         sents.append(f"숙제 {f['homework']}개를 확인하고, 책을 {f['reading_min']}분 동안 읽었어요.")
     elif f["homework"]:

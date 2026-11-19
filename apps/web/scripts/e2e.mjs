@@ -88,22 +88,21 @@ try {
 
   // S03 → tags → S04 → S05 → S06
   await G.goto(`${BASE}/g/find`, { waitUntil: "networkidle0" });
-  await click(G, "이야기에서 테마 찾기");
+  await click(G, "요청에서 태그 찾기");
+  await G.type("textarea[placeholder^='예: 곤충']", "곤충이랑 식물을 좋아해요.");
   await waitText(G, "낯가림");
   await shot(G, "m03_S03_find_tags");
-  await click(G, "이 이야기로 선생님 찾기");
-  await waitText(G, "우리 아이와 맞는 선생님");
-  await waitText(G, "선생님 자세히 보기");
+  await click(G, "이 조건으로 찾기");
+  await waitText(G, "점");
+  await waitText(G, "김하늘 선생님");
   await shot(G, "m04_S04_recommend");
-  const firstName = await G.evaluate(() => document.querySelector("main button p")?.innerText ?? "");
-  check(`context match: insects/plants → forest guide (got ${firstName})`, firstName.startsWith("한도윤"));
+  check("extra context reason shown", (await G.evaluate(() => document.body.innerText)).includes("추가 정보와 맞아요"));
+  check("김하늘 recommended first", await G.evaluate(() => document.body.innerText.indexOf("김하늘 선생님") < document.body.innerText.indexOf("박다솜") || !document.body.innerText.includes("박다솜")));
   await click(G, "선생님 자세히 보기");
-  await waitText(G, "우리 아이와 맞는 이유");
+  await waitText(G, "우리 가정에 추천된 이유");
   await shot(G, "m05_S05_teacher");
   await click(G, "이 선생님께 방문 요청");
   await waitText(G, "이용 유형");
-  await domClick(G, "실시간 영상 공유 (선택)");
-  await waitText(G, "녹화도 원해요");
   await shot(G, "m06_S06_request");
   await click(G, "방문 요청 보내기");
   await waitText(G, "요청 중");
@@ -111,7 +110,6 @@ try {
 
   // S13 teacher accepts (realtime push)
   await waitText(T, "응답 필요");
-  check("teacher phone becomes the picked caregiver", (await T.evaluate(() => document.body.innerText)).includes("한도윤 선생님"));
   await shot(T, "t01_S13_new_request");
   await click(T, "수락하기", { exact: true });
   await click(T, "내 방문");
@@ -165,6 +163,8 @@ try {
   await click(G, "전달하기");
   await G.waitForFunction(() => location.pathname === "/g/visits", { timeout: 20000 });
   await waitText(G, "선생님에게 맡긴 일");
+  await domClick(G, "이번 방문의 영상 공유에 동의해요");
+  await new Promise((r) => setTimeout(r, 800));
   await shot(G, "m17_S07_approved");
 
   // teacher: S14 → consent → start (fake camera streams)
@@ -173,8 +173,8 @@ try {
   await click(T, "방문 할 일 보기");
   await waitText(T, "보호자가 맡긴 학교 일");
   await shot(T, "t03_S14_tasks");
-  await domClick(T, "실시간 영상 공유 (선택)");
-  await waitText(T, "보호자가 영상 공유를 선택했어요");
+  await domClick(T, "이번 방문의 영상 공유에 동의해요");
+  await waitText(T, "보호자는 영상 공유에 동의했어요");
   await click(T, "방문 시작", { exact: true });
   await waitText(T, "완료한 일만 체크해 주세요");
   await waitText(T, "영상 공유", 15000);
@@ -191,7 +191,7 @@ try {
   await shot(T, "t04_S14_live_streaming");
 
   // teacher checks tasks, records, finishes
-  for (const label of ["독서 기록장 챙기기", "곤충 활동 함께하기", "식물·자연 활동 함께하기", "귀가 전 안전 확인"]) {
+  for (const label of ["독서 기록장 챙기기", "숙제 확인", "독서"]) {
     await T.evaluate((l) => {
       const b = [...document.querySelectorAll("button[aria-pressed]")].find((x) => x.innerText.trim() === l);
       if (b && b.getAttribute("aria-pressed") === "false") b.click();
@@ -201,9 +201,9 @@ try {
   await shot(T, "t05_S14_done");
   await click(T, "활동 기록하기");
   await waitText(T, "방문 할 일에서 확인한 내용");
-  await T.type("input[placeholder^='예:']", "개미 관찰");
   const inputs = await T.$$("input[inputmode=numeric]");
-  await inputs[0].type("30");
+  await inputs[0].type("2");
+  await inputs[1].type("20");
   await shot(T, "t06_S15_record");
   await click(T, "방문 종료하기");
   await waitText(T, "방문을 마칠까요?");
@@ -213,7 +213,7 @@ try {
   await waitText(T, "보호자에게 보낼 내용");
   await shot(T, "t08_S16_draft");
   const draft = await T.evaluate(() => document.querySelector("textarea")?.value || "");
-  check(`report draft grounded in record (${draft})`, draft.startsWith("오늘은 30분 동안 개미 관찰을 함께 했어요."));
+  check("report draft grounded in record", draft.startsWith("숙제 2개를 확인하고, 책을 20분 동안 읽었어요."));
   await click(T, "활동 기록과 최종 내용을 대조했어요");
   await click(T, "확인한 리포트 보내기");
   await waitText(T, "보호자에게 보냈어요");
@@ -226,7 +226,7 @@ try {
   await click(G, "리포트 보기");
   await waitText(G, "선생님이 남긴 말");
   await shot(G, "m20_S12_report");
-  check("guardian sees sent report", (await G.evaluate(() => document.body.innerText)).includes("개미 관찰"));
+  check("guardian sees sent report", (await G.evaluate(() => document.body.innerText)).includes("숙제"));
 
   // desktop layouts
   await G.setViewport(DESKTOP);
@@ -238,15 +238,6 @@ try {
   await T.goto(`${BASE}/t/visits`, { waitUntil: "networkidle0" });
   await click(T, "내 방문");
   await shot(T, "d04_teacher_visits");
-  const A = await phone("admin");
-  await A.setViewport(DESKTOP);
-  await A.goto(`${BASE}/admin`, { waitUntil: "networkidle0" });
-  await A.waitForFunction(() => location.pathname === "/admin/reviews", { timeout: 60000 });
-  await waitText(A, "추출 결과", 60000);
-  await shot(A, "d05_S18_reviews");
-  await A.goto(`${BASE}/admin/alerts`, { waitUntil: "networkidle0" });
-  await waitText(A, "운영 경보");
-  await shot(A, "d06_S19_alerts");
   const desk = await browser.createBrowserContext();
   const D = await desk.newPage();
   await D.setViewport(DESKTOP);

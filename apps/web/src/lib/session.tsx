@@ -19,7 +19,6 @@ type Session = {
   connected: boolean;
   startRoom: () => Promise<void>;
   joinRoom: (code: string, role: Role) => Promise<void>;
-  loginAdmin: () => Promise<void>;
   switchRole: (role?: Role) => void;
   signOut: () => void;
   api: <T>(path: string, init?: RequestInit & { json?: unknown }) => Promise<T>;
@@ -51,7 +50,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   // one socket per active identity; reconnects with backoff
   useEffect(() => {
-    if (!token || role === "admin") return;
+    if (!token) return;
     let alive = true;
     let retry = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -109,11 +108,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     persist({ ...(room === res.code ? tokens : {}), [r]: res.token }, r, res.code);
   }, [persist, room, tokens]);
 
-  const loginAdmin = useCallback(async () => {
-    const res = await request<{ token: string }>("/api/auth/admin", { method: "POST" });
-    persist({ ...tokens, admin: res.token }, "admin", room);
-  }, [persist, tokens, room]);
-
   const switchRole = useCallback((next?: Role) => {
     const target: Role = next ?? (role === "guardian" ? "teacher" : "guardian");
     if (!tokens[target]) return;
@@ -146,8 +140,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<Session>(() => ({
     ready, role, room, token, tokens, peers, version, connected,
-    startRoom, joinRoom, loginAdmin, switchRole, signOut, api, sendRtc, onRtc,
-  }), [ready, role, room, token, tokens, peers, version, connected, startRoom, joinRoom, loginAdmin, switchRole, signOut, api, sendRtc, onRtc]);
+    startRoom, joinRoom, switchRole, signOut, api, sendRtc, onRtc,
+  }), [ready, role, room, token, tokens, peers, version, connected, startRoom, joinRoom, switchRole, signOut, api, sendRtc, onRtc]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

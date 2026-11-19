@@ -36,7 +36,7 @@ function JoinInner() {
           <input className={`${inputCls} tracking-[0.3em] uppercase`} value={code} maxLength={6} inputMode="text"
             autoCapitalize="characters" onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="예: K7P2QX" />
         </Field>
-        <Info>이 휴대폰은 보호자가 고른 돌봄 선생님(시연 계정)으로 활동해요.</Info>
+        <Info>이 휴대폰은 김하늘 선생님(시연 계정)으로 활동해요.</Info>
         <ErrorText>{err}</ErrorText>
       </div>
       <BottomAction>

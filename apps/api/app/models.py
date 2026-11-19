@@ -31,7 +31,10 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(40))
     teacher_id: Mapped[int | None] = mapped_column(ForeignKey("teachers.id"))
     # guardian household
-    region: Mapped[str] = mapped_column(String(40), default="강원특별자치도 춘천시")
+    region: Mapped[str] = mapped_column(String(60), default="강원특별자치도 춘천시 석사동")
+    area: Mapped[str] = mapped_column(String(30), default="석사동")  # 동·읍·면
+    lat: Mapped[float | None] = mapped_column(default=None)
+    lng: Mapped[float | None] = mapped_column(default=None)
     address: Mapped[str] = mapped_column(String(120), default="춘천시 예시로 00")
     address_detail: Mapped[str] = mapped_column(String(80), default="가상동 101호")
     child_desc: Mapped[str] = mapped_column(String(60), default="초등 2학년 · 아이 한 명")
@@ -43,16 +46,17 @@ class Teacher(Base):
     room_id: Mapped[int | None] = mapped_column(ForeignKey("rooms.id"), index=True)
     name: Mapped[str] = mapped_column(String(20))
     region: Mapped[str] = mapped_column(String(20))  # 춘천시, 원주시 ...
-    source_id: Mapped[int | None] = mapped_column(Integer)  # room copy → pool profile it was cloned from
-    # Context first: who they are and what they love doing with children.
-    background: Mapped[str] = mapped_column(String(40), default="")  # 숲해설가 · 은퇴
-    story: Mapped[str] = mapped_column(Text, default="")  # 살아온 이야기 (매칭의 핵심 근거)
-    interests: Mapped[list] = mapped_column(JSON, default=list)  # 테마: 곤충, 음악·노래 ...
-    traits: Mapped[list] = mapped_column(JSON, default=list)  # 차분함, 활발함 ...
-    # Credentials are optional badges, never a requirement:
-    # certified = 교원 자격 · qualified = 보육교사·아이돌봄사 등 · none = 자격 없음(경험·이야기 기반)
-    qual_type: Mapped[str] = mapped_column(String(12), default="none")
-    qual_detail: Mapped[str] = mapped_column(String(60), default="")
+    area: Mapped[str] = mapped_column(String(30), default="")  # 석사동 (활동 중심 동네)
+    lat: Mapped[float | None] = mapped_column(default=None)
+    lng: Mapped[float | None] = mapped_column(default=None)
+    radius_km: Mapped[float] = mapped_column(default=5.0)  # 방문 가능 반경
+    source_id: Mapped[int | None] = mapped_column(Integer)  # room copy → pool profile
+    # 선택 입력: 선생님의 관심사·삶의 경험. 보호자의 "추가 정보" 맥락 매칭에만 쓰임
+    context: Mapped[str] = mapped_column(Text, default="")
+    # certified = 교원 자격 보유(정교사 1·2급, 퇴직 교원 포함)
+    # qualified = 준자격(보육교사·아이돌봄사·아동 교육 전공·아동 지도 경력 검증)
+    qual_type: Mapped[str] = mapped_column(String(12))
+    qual_detail: Mapped[str] = mapped_column(String(60))
     years: Mapped[int] = mapped_column(Integer, default=0)
     headline: Mapped[str] = mapped_column(String(40))  # 초등 저학년 지도
     title: Mapped[str] = mapped_column(String(60))  # 차분하게, 아이의 속도에 맞춰요
@@ -85,9 +89,6 @@ class Visit(Base):
     status: Mapped[str] = mapped_column(String(12), default="requested")
     consent_guardian: Mapped[bool] = mapped_column(Boolean, default=False)
     consent_teacher: Mapped[bool] = mapped_column(Boolean, default=False)
-    # optional recording, kept only on the guardian's own device; needs both sides
-    record_guardian: Mapped[bool] = mapped_column(Boolean, default=False)
-    record_teacher: Mapped[bool] = mapped_column(Boolean, default=False)
     video_state: Mapped[str] = mapped_column(String(12), default="off")  # off | ready | live | stopped
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -127,8 +128,6 @@ class ActivityRecord(Base):
     visit_id: Mapped[int] = mapped_column(ForeignKey("visits.id"), unique=True)
     homework: Mapped[int | None] = mapped_column(Integer)
     reading_min: Mapped[int | None] = mapped_column(Integer)
-    theme_activity: Mapped[str] = mapped_column(String(60), default="")  # 오늘 함께한 테마 활동
-    theme_min: Mapped[int | None] = mapped_column(Integer)
     memo: Mapped[str] = mapped_column(Text, default="")
     transcript: Mapped[str] = mapped_column(Text, default="")
 
@@ -142,33 +141,3 @@ class Report(Base):
     engine: Mapped[str] = mapped_column(String(16), default="rules")
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     read: Mapped[bool] = mapped_column(Boolean, default=False)
-
-
-class CredentialReview(Base):
-    __tablename__ = "credential_reviews"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(20))
-    applied: Mapped[str] = mapped_column(String(40))  # 초등 교원 · 춘천시
-    received: Mapped[str] = mapped_column(String(10))
-    doc_title: Mapped[str] = mapped_column(String(40))
-    doc_text: Mapped[str] = mapped_column(Text)
-    extracted: Mapped[dict] = mapped_column(JSON, default=dict)
-    checked_original: Mapped[bool] = mapped_column(Boolean, default=False)
-    checked_crime: Mapped[bool] = mapped_column(Boolean, default=False)
-    request_note: Mapped[str] = mapped_column(Text, default="")
-    status: Mapped[str] = mapped_column(String(12), default="pending")  # pending | approved | requested
-
-
-class OpsAlert(Base):
-    __tablename__ = "ops_alerts"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    room_id: Mapped[int | None] = mapped_column(ForeignKey("rooms.id"), index=True)
-    visit_id: Mapped[int | None] = mapped_column(ForeignKey("visits.id"))
-    kind: Mapped[str] = mapped_column(String(20))  # 도착 지연 | 영상 중단 | 잦은 취소
-    title: Mapped[str] = mapped_column(String(60))
-    subtitle: Mapped[str] = mapped_column(String(80))
-    detail: Mapped[list] = mapped_column(JSON, default=list)
-    action: Mapped[str] = mapped_column(String(20), default="")
-    memo: Mapped[str] = mapped_column(Text, default="")
-    status: Mapped[str] = mapped_column(String(12), default="open")  # open | resolved
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

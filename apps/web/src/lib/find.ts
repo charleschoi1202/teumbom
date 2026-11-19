@@ -1,6 +1,7 @@
 export type Criteria = {
   region: string; date: string; start: string; text: string; tags: string[]; teacherId?: number;
-  credentialedOnly?: boolean; video?: boolean; record?: boolean;
+  area?: string; lat?: number | null; lng?: number | null;
+  context?: string; // 추가 정보(선택) — 맥락에 맞는 경험이 있는 선생님을 함께 찾음
 };
 
 const KEY = "tb.find";
@@ -13,12 +14,16 @@ function tomorrow(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export function defaultCriteria(region = "강원특별자치도 춘천시"): Criteria {
-  return {
-    region, date: tomorrow(), start: "15:00",
-    text: "곤충이랑 식물을 정말 좋아해요. 밖에서 관찰하는 걸 좋아하고 낯을 조금 가려요.",
-    tags: [], credentialedOnly: false, video: false, record: false,
-  };
+export function defaultCriteria(region = "강원특별자치도 춘천시 석사동", area = "석사동", lat: number | null = null, lng: number | null = null): Criteria {
+  return { region, area, lat, lng, date: tomorrow(), start: "15:00", text: "낯을 가려요. 숙제를 차분히 도와주시면 좋겠어요.", tags: [], context: "" };
+}
+
+const RECO = "tb.reco";
+export function saveReasons(map: Record<number, { score: number | null; reasons: string[] }>) {
+  try { sessionStorage.setItem(RECO, JSON.stringify(map)); } catch { /* ignore */ }
+}
+export function loadReasons(): Record<number, { score: number | null; reasons: string[] }> {
+  try { return JSON.parse(sessionStorage.getItem(RECO) || "{}"); } catch { return {}; }
 }
 
 export function loadCriteria(): Criteria | null {
@@ -52,5 +57,6 @@ export function endTime(start: string, hours = 3): string {
   return `${String((h + hours) % 24).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 export function cityOf(region: string): string {
-  return region.split(" ").pop() || region;
+  const parts = region.split(" ");
+  return parts.length >= 2 ? parts.slice(-2).join(" ").replace(/^강원특별자치도 /, "") : region;
 }
