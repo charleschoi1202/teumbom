@@ -6,6 +6,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useState } from "react";
 import { Logo } from "@/components/Logo";
 import { Badge, Button, ErrorText } from "@/components/ui";
+import { apiBase } from "@/lib/api";
 import { useSession } from "@/lib/session";
 
 const STEPS = ["통신문 확인 · 할 일 맡기기", "방문 중 체크 · 활동 기록", "선생님 확인 후 리포트 받기"];
@@ -17,7 +18,24 @@ export default function Start() {
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState("");
   const [url, setUrl] = useState("");
+  const [server, setServer] = useState<"checking" | "ready" | "waking" | "down">("checking");
   useEffect(() => setUrl(window.location.origin), []);
+
+  // Free-tier API sleeps when idle: wake it as soon as someone scans the QR.
+  useEffect(() => {
+    let alive = true;
+    const slow = setTimeout(() => alive && setServer((s) => (s === "checking" ? "waking" : s)), 2500);
+    const ping = async (tries: number): Promise<void> => {
+      try {
+        const r = await fetch(`${apiBase()}/`, { cache: "no-store" });
+        if (r.ok && alive) { setServer("ready"); return; }
+      } catch { /* retry */ }
+      if (tries > 0 && alive) { await new Promise((res) => setTimeout(res, 3000)); return ping(tries - 1); }
+      if (alive) setServer("down");
+    };
+    void ping(25);
+    return () => { alive = false; clearTimeout(slow); };
+  }, []);
 
   async function begin(as: "guardian" | "teacher") {
     setBusy(as);
@@ -52,6 +70,12 @@ export default function Start() {
               </li>
             ))}
           </ol>
+          {server === "waking" && (
+            <p className="t14 flex items-center gap-2 rounded-xl bg-wait px-4 py-3 text-wait-ink" role="status">
+              <span className="tb-pulse">●</span> 시연 서버를 깨우는 중이에요. 무료 서버라 첫 접속은 30초 정도 걸려요.
+            </p>
+          )}
+          {server === "down" && <ErrorText>시연 서버에 연결하지 못했어요. 잠시 후 새로고침해 주세요.</ErrorText>}
           <ErrorText>{err}</ErrorText>
           <div className="flex flex-col gap-3">
             <Button onClick={() => begin("guardian")} disabled={!!busy}>{busy === "guardian" ? "시연 방을 만드는 중…" : "보호자로 체험하기"}</Button>
