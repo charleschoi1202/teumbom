@@ -43,7 +43,11 @@ def end_time(start: str, hours: int) -> str:
 
 
 def kst_hm(dt: datetime | None) -> str:
-    return dt.astimezone(KST).strftime("%H:%M") if dt else ""
+    if not dt:
+        return ""
+    if dt.tzinfo is None:  # SQLite drops tzinfo; we always store UTC
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(KST).strftime("%H:%M")
 
 
 def city(region: str) -> str:

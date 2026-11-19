@@ -132,7 +132,7 @@ export function Info({ children, tone = "blue", className }: { children: ReactNo
 export function AppBarRoot({ title, right }: { title: string; right?: ReactNode }) {
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center justify-between bg-surface px-5 lg:static lg:h-auto lg:bg-transparent lg:px-0 lg:pb-2 lg:pt-8">
-      <h1 className="t20 font-bold lg:t24">{title}</h1>
+      <h1 className="t20 font-bold lg:text-[24px] lg:leading-8">{title}</h1>
       {right}
     </header>
   );
@@ -145,22 +145,24 @@ export function AppBarDetail({ title, back, right }: { title: string; back?: str
         className="flex h-12 w-12 items-center justify-center text-brand-deep lg:-ml-3">
         <Icon name="back" />
       </button>
-      <h1 className="t20 font-bold flex-1 lg:t24">{title}</h1>
+      <h1 className="t20 font-bold flex-1 lg:text-[24px] lg:leading-8">{title}</h1>
       {right}
     </header>
   );
 }
 
 /* ── Bottom fixed action (mobile) / inline action row (desktop) ── */
-export function BottomAction({ children, note }: { children: ReactNode; note?: ReactNode }) {
+export function BottomAction({ children, note, aboveTabs }: { children: ReactNode; note?: ReactNode; aboveTabs?: boolean }) {
   return (
     <>
       <div className="h-36 lg:hidden" aria-hidden />
-      <div className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-soft bg-surface px-5 pb-4 pt-3 lg:static lg:mt-6 lg:border-0 lg:bg-transparent lg:p-0">
+      <div className={cx("fixed inset-x-0 z-30 lg:static", aboveTabs ? "bottom-[72px]" : "safe-bottom bottom-0")} style={aboveTabs ? { marginBottom: "env(safe-area-inset-bottom)" } : undefined}>
+      <div className="border-t border-soft bg-surface px-5 pb-4 pt-3 lg:static lg:mt-6 lg:border-0 lg:bg-transparent lg:p-0">
         <div className="mx-auto flex max-w-[480px] flex-col gap-2 lg:max-w-none lg:flex-row-reverse lg:items-center lg:justify-start lg:gap-3 [&>a]:lg:w-auto [&>a]:lg:min-w-60 [&>button]:lg:w-auto [&>button]:lg:min-w-60">
           {children}
         </div>
         {note && <p className="t14 mx-auto mt-2 max-w-[480px] text-muted lg:max-w-none">{note}</p>}
+      </div>
       </div>
     </>
   );

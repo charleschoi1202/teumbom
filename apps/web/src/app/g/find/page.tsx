@@ -98,7 +98,7 @@ export default function Find() {
             )}
           </div>
         </div>
-        <BottomAction>
+        <BottomAction aboveTabs>
           <Button onClick={search} disabled={!c.date || !c.region}>이 조건으로 찾기</Button>
         </BottomAction>
       </Page>

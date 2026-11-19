@@ -1,8 +1,10 @@
 """Optional Claude backend.
 
 Everything in `app.ai` works without an API key (rule-based "demo mode").
-When ANTHROPIC_API_KEY is set, the notice extractor and the matching tagger
-also ask Claude, and the rule-based checks still verify whatever comes back.
+Claude is used only when explicitly switched on with TEUMBOM_AI=claude *and*
+an ANTHROPIC_API_KEY is present — a key that merely exists in the machine's
+environment is never picked up by accident. The rule-based checks still verify
+whatever Claude returns.
 """
 from __future__ import annotations
 
@@ -17,7 +19,7 @@ MODEL = os.getenv("ANTHROPIC_MODEL", "claude-opus-5-5")
 
 
 def enabled() -> bool:
-    return bool(os.getenv("ANTHROPIC_API_KEY"))
+    return os.getenv("TEUMBOM_AI", "rules").lower() == "claude" and bool(os.getenv("ANTHROPIC_API_KEY"))
 
 
 def _client():
