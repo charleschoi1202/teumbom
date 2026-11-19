@@ -28,6 +28,7 @@ export default function ReportView({ params }: { params: Promise<{ id: string }>
               <div className="flex flex-col gap-4">
                 <Card className="flex flex-col gap-3">
                   <h3 className="t20 font-bold">오늘 함께한 활동</h3>
+                  {r.theme_activity && <div className="t16 flex justify-between"><span>{r.theme_activity}</span><b>{r.theme_min ? `${r.theme_min}분` : "완료"}</b></div>}
                   {r.homework != null && <div className="t16 flex justify-between"><span>숙제</span><b>{r.homework}개</b></div>}
                   {r.reading_min != null && <div className="t16 flex justify-between"><span>독서</span><b>{r.reading_min}분</b></div>}
                   {r.school_done.length > 0 && <div className="h-px bg-soft" />}

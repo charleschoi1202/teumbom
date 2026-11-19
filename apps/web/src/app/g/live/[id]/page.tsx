@@ -32,6 +32,10 @@ export default function LiveView({ params }: { params: Promise<{ id: string }> }
   const viewerRef = useRef<Viewer | null>(null);
   const [state, setState] = useState("waiting");
   const [hasVideo, setHasVideo] = useState(false);
+  const streamRef = useRef<MediaStream | null>(null);
+  const recRef = useRef<MediaRecorder | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [savedName, setSavedName] = useState("");
 
   const allowed = !!v && v.status === "live" && v.consent.guardian && v.consent.teacher;
   const teacherOnline = peers.includes("teacher");
@@ -46,6 +50,7 @@ export default function LiveView({ params }: { params: Promise<{ id: string }> }
       viewerRef.current = viewer;
       viewer.onStream = (s) => {
         setHasVideo(!!s);
+        streamRef.current = s;
         if (videoRef.current) {
           videoRef.current.srcObject = s;
           if (s) videoRef.current.play().catch(() => {});
@@ -64,6 +69,36 @@ export default function LiveView({ params }: { params: Promise<{ id: string }> }
       viewerRef.current = null;
     };
   }, [allowed, visitId, sendRtc, onRtc]);
+
+  const canRecord = !!v && v.consent.record_guardian && v.consent.record_teacher;
+
+  /** 선택 녹화: 두 사람 모두 허용한 경우에만, 이 휴대폰에만 저장(서버로 올리지 않음) */
+  function toggleRecord() {
+    if (recording) {
+      recRef.current?.stop();
+      return;
+    }
+    const s = streamRef.current;
+    if (!s || typeof MediaRecorder === "undefined") return;
+    const type = ["video/webm;codecs=vp9", "video/webm", "video/mp4"].find((t) => MediaRecorder.isTypeSupported(t)) ?? "";
+    const rec = new MediaRecorder(s, type ? { mimeType: type } : undefined);
+    const chunks: Blob[] = [];
+    rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+    rec.onstop = () => {
+      setRecording(false);
+      const blob = new Blob(chunks, { type: rec.mimeType || "video/webm" });
+      const name = `teumbom-${v?.date ?? "visit"}-${Date.now()}.${(rec.mimeType || "").includes("mp4") ? "mp4" : "webm"}`;
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+      setSavedName(name);
+    };
+    rec.start(1000);
+    recRef.current = rec;
+    setRecording(true);
+  }
 
   if (!v) return <><AppBarDetail title="실시간 방문 보기" /><Loading /></>;
 
@@ -104,10 +139,21 @@ export default function LiveView({ params }: { params: Promise<{ id: string }> }
           )}
         </div>
         <Info>보호자·선생님 동의 완료{"\n"}선생님 휴대폰 카메라 → 이 화면으로 직접 전송(WebRTC) · {STATE_LABEL[state] ?? state}</Info>
-        <div>
-          <h3 className="t20 font-bold">실시간으로만 확인해요</h3>
-          <p className="t16 mt-2 text-muted">녹화본 탐색이나 다운로드는 제공하지 않아요. 분쟁 시에는 별도 절차로 열람해요.</p>
-        </div>
+        {canRecord ? (
+          <div className="flex flex-col gap-2">
+            <h3 className="t20 font-bold">녹화 (선택)</h3>
+            <p className="t16 text-muted">두 분 모두 녹화를 허용했어요. 녹화본은 서버에 올라가지 않고 이 휴대폰에만 저장돼요.</p>
+            <Button kind={recording ? "danger" : "secondary"} disabled={!hasVideo} onClick={toggleRecord}>
+              {recording ? "● 녹화 멈추고 저장" : "녹화 시작"}
+            </Button>
+            {savedName && <p className="t14 text-sent-ink">저장했어요 · {savedName}</p>}
+          </div>
+        ) : (
+          <div>
+            <h3 className="t20 font-bold">실시간으로만 확인해요</h3>
+            <p className="t16 mt-2 text-muted">녹화는 선택이에요. 두 분 모두 녹화를 허용한 방문에서만 이 휴대폰에 저장할 수 있어요.</p>
+          </div>
+        )}
         <BottomAction>
           <Button kind="secondary" disabled={busy} onClick={() => run(`/api/visits/${v.id}/consent`, { value: false })}>영상 공유 동의 철회</Button>
         </BottomAction>

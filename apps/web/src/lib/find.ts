@@ -1,4 +1,7 @@
-export type Criteria = { region: string; date: string; start: string; text: string; tags: string[]; teacherId?: number };
+export type Criteria = {
+  region: string; date: string; start: string; text: string; tags: string[]; teacherId?: number;
+  credentialedOnly?: boolean; video?: boolean; record?: boolean;
+};
 
 const KEY = "tb.find";
 
@@ -11,7 +14,11 @@ function tomorrow(): string {
 }
 
 export function defaultCriteria(region = "강원특별자치도 춘천시"): Criteria {
-  return { region, date: tomorrow(), start: "15:00", text: "낯을 가려요. 숙제를 차분히 도와주시면 좋겠어요.", tags: [] };
+  return {
+    region, date: tomorrow(), start: "15:00",
+    text: "곤충이랑 식물을 정말 좋아해요. 밖에서 관찰하는 걸 좋아하고 낯을 조금 가려요.",
+    tags: [], credentialedOnly: false, video: false, record: false,
+  };
 }
 
 export function loadCriteria(): Criteria | null {

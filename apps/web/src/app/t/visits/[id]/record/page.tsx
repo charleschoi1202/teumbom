@@ -19,6 +19,8 @@ export default function Record({ params }: { params: Promise<{ id: string }> }) 
   const [hw, setHw] = useState("");
   const [rd, setRd] = useState("");
   const [memo, setMemo] = useState("");
+  const [act, setAct] = useState("");
+  const [actMin, setActMin] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [mode, setMode] = useState<Mode>("edit");
   const [transcript, setTranscript] = useState("");
@@ -34,6 +36,8 @@ export default function Record({ params }: { params: Promise<{ id: string }> }) 
     setHw(v.record?.homework != null ? String(v.record.homework) : "");
     setRd(v.record?.reading_min != null ? String(v.record.reading_min) : "");
     setMemo(v.record?.memo ?? "");
+    setAct(v.record?.theme_activity ?? "");
+    setActMin(v.record?.theme_min != null ? String(v.record.theme_min) : "");
     setLoaded(true);
   }, [v, loaded]);
 
@@ -51,7 +55,7 @@ export default function Record({ params }: { params: Promise<{ id: string }> }) 
   const num = (s: string) => (s.trim() === "" ? null : Math.max(0, parseInt(s, 10) || 0));
 
   async function save() {
-    await api(`/api/visits/${v!.id}/record`, { method: "PUT", json: { homework: num(hw), reading_min: num(rd), memo, transcript } });
+    await api(`/api/visits/${v!.id}/record`, { method: "PUT", json: { homework: num(hw), reading_min: num(rd), memo, transcript, theme_activity: act, theme_min: num(actMin) } });
   }
 
   function startRec() {
@@ -138,14 +142,26 @@ export default function Record({ params }: { params: Promise<{ id: string }> }) 
             <p className="t14 mt-2 text-muted">수행 여부는 방문 할 일에서 바꿔 주세요.</p>
           </Card>
           <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-[1fr_120px] gap-3">
+              <Field label="오늘 함께한 테마 활동">
+                <input className={inputCls} value={act} maxLength={60} onChange={(e) => setAct(e.target.value)}
+                  placeholder={v.tags.find((g) => g !== "낯가림") ? `예: ${v.tags[0]} 관찰` : "예: 개미 관찰"} />
+              </Field>
+              <Field label="시간">
+                <div className="relative">
+                  <input inputMode="numeric" className={inputCls} value={actMin} onChange={(e) => setActMin(e.target.value.replace(/\D/g, ""))} placeholder="기록 없음" />
+                  <span className="t16 pointer-events-none absolute right-3 top-[13px] text-muted">분</span>
+                </div>
+              </Field>
+            </div>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="숙제 개수">
+              <Field label="숙제 개수 · 선택">
                 <div className="relative">
                   <input inputMode="numeric" className={inputCls} value={hw} onChange={(e) => setHw(e.target.value.replace(/\D/g, ""))} placeholder="기록 없음" />
                   <span className="t16 pointer-events-none absolute right-3 top-[13px] text-muted">개</span>
                 </div>
               </Field>
-              <Field label="독서 시간">
+              <Field label="독서 시간 · 선택">
                 <div className="relative">
                   <input inputMode="numeric" className={inputCls} value={rd} onChange={(e) => setRd(e.target.value.replace(/\D/g, ""))} placeholder="기록 없음" />
                   <span className="t16 pointer-events-none absolute right-3 top-[13px] text-muted">분</span>

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import threading
 from datetime import date, datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -14,11 +13,11 @@ from .ai import match as ai_match
 from .ai import notice as ai_notice
 from .ai import report as ai_report
 from .ai import llm
-from .db import SessionLocal, get_db
+from .db import get_db
 from .models import (ActivityRecord, CredentialReview, Notice, OpsAlert, Report, Room, Task, Teacher, User,
                      Visit, now)
 from .realtime import hub
-from .seed import create_room
+from .seed import clone_for_room, create_room
 
 router = APIRouter(prefix="/api")
 KST = timezone(timedelta(hours=9))
@@ -54,19 +53,21 @@ def city(region: str) -> str:
     return region.split()[-1] if region else ""
 
 
-QUAL_LABEL = {"certified": "교원 자격 확인 완료", "qualified": "아동 지도 자격 확인 완료"}
-QUAL_KIND = {"certified": "교원 자격", "qualified": "준자격 · 경력 검증"}
+QUAL_LABEL = {"certified": "교원 자격 보유", "qualified": "보육·돌봄 자격 보유", "none": ""}
+SAFETY_LABEL = "신원·범죄경력 확인 완료"
 
 
-def teacher_out(t: Teacher, score: int | None = None, reasons: list[str] | None = None) -> dict:
+def teacher_out(t: Teacher, score: int | None = None, reasons: list[str] | None = None,
+                matched: list[str] | None = None) -> dict:
     return {
         "id": t.id, "name": t.name, "initial": t.name[:1], "region": t.region,
-        "qual_type": t.qual_type, "qual_label": QUAL_LABEL.get(t.qual_type, "자격 확인 완료"),
-        "qual_kind": QUAL_KIND.get(t.qual_type, ""), "qual_detail": t.qual_detail, "years": t.years,
+        "background": t.background, "story": t.story, "interests": t.interests or [], "traits": t.traits or [],
+        "qual_type": t.qual_type, "qual_label": QUAL_LABEL.get(t.qual_type, ""), "safety_label": SAFETY_LABEL,
+        "qual_detail": t.qual_detail, "years": t.years,
         "headline": t.headline, "title": t.title, "intro": t.intro, "experience": t.experience,
         "tags": t.tags, "days": t.days, "start_time": t.start_time, "rating": t.rating,
         "verified": {"docs": t.verified_docs, "crime": t.verified_crime, "training": t.trained, "shadow": t.shadow_visit},
-        "score": score, "reasons": reasons or [],
+        "score": score, "reasons": reasons or [], "matched": matched or [],
     }
 
 
@@ -108,14 +109,16 @@ def visit_out(db: Session, v: Visit, viewer: User) -> dict:
         "child_desc": guardian.child_desc if guardian else "",
         "region": guardian.region if guardian else "",
         "address": f"{guardian.address}, {guardian.address_detail}" if (guardian and show_address) else None,
-        "consent": {"guardian": v.consent_guardian, "teacher": v.consent_teacher},
+        "consent": {"guardian": v.consent_guardian, "teacher": v.consent_teacher,
+                    "record_guardian": v.record_guardian, "record_teacher": v.record_teacher},
         "video_state": v.video_state,
         "started_at": kst_hm(v.started_at), "finished_at": kst_hm(v.finished_at),
         "tasks": [{"id": t.id, "title": t.title, "kind": t.kind, "owner": t.owner, "category": t.category,
                    "due": t.due, "due_label": (f"{date.fromisoformat(t.due).month}월 {date.fromisoformat(t.due).day}일" if t.due else ""),
                    "done": t.done} for t in tasks],
         "notice": notice_info,
-        "record": {"homework": rec.homework, "reading_min": rec.reading_min, "memo": rec.memo} if rec else None,
+        "record": {"homework": rec.homework, "reading_min": rec.reading_min, "memo": rec.memo,
+                   "theme_activity": rec.theme_activity, "theme_min": rec.theme_min} if rec else None,
         "report": ({"sent": bool(rep.sent_at), "sent_at": kst_hm(rep.sent_at), "message": rep.message if (rep.sent_at or is_teacher) else None}
                    if rep else None),
     }
@@ -125,8 +128,6 @@ def get_visit(db: Session, visit_id: int, user: User) -> Visit:
     v = db.get(Visit, visit_id)
     if not v or v.room_id != user.room_id:
         raise HTTPException(404, "방문을 찾을 수 없어요.")
-    if user.role == "teacher" and v.teacher_id != user.teacher_id:
-        raise HTTPException(403, "담당 방문이 아니에요.")
     return v
 
 
@@ -140,9 +141,15 @@ def changed(v: Visit, what: str = "visit") -> None:
 
 
 def ensure_basic_tasks(db: Session, v: Visit) -> None:
+    """The visit plan follows what the child loves (themes), not a fixed curriculum."""
     if any(t.kind == "basic" for t in v.tasks):
         return
-    for title in ("숙제 확인", "독서"):
+    themes = [g for g in (v.tags or []) if g in ai_match.THEMES and g != "숙제·학습"]
+    titles = [f"{g} 활동 함께하기" for g in themes[:2]]
+    if "숙제·학습" in (v.tags or []) or not themes:
+        titles.append("숙제 확인")
+    titles.append("귀가 전 안전 확인")
+    for title in titles:
         v.tasks.append(Task(title=title, kind="basic", owner="teacher"))
 
 
@@ -227,6 +234,10 @@ class TeacherProfileIn(BaseModel):
     name: str | None = Field(default=None, max_length=20)
     headline: str | None = Field(default=None, max_length=40)
     intro: str | None = Field(default=None, max_length=400)
+    background: str | None = Field(default=None, max_length=40)
+    story: str | None = Field(default=None, max_length=800)
+    interests: list[str] | None = None
+    traits: list[str] | None = None
     region: str | None = Field(default=None, max_length=20)
     days: list[str] | None = None
     start_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
@@ -237,6 +248,10 @@ def update_teacher(body: TeacherProfileIn, user: User = Depends(auth.require("te
     t = db.get(Teacher, user.teacher_id)
     for k, val in body.model_dump(exclude_none=True).items():
         setattr(t, k, val)
+    if body.story is not None:
+        t.intro = body.story
+    if body.interests is not None or body.traits is not None:
+        t.tags = list(t.interests or []) + list(t.traits or [])
     if body.name:
         user.name = body.name
     db.commit()
@@ -251,21 +266,25 @@ class TagsIn(BaseModel):
 
 @router.post("/match/tags")
 def match_tags(body: TagsIn, user: User = Depends(auth.current_user)):
-    return {"tags": ai_match.extract_tags(body.text), "engine": "claude+rules" if llm.enabled() else "rules"}
+    return {"tags": ai_match.extract_tags(body.text), "engine": "claude+rules" if llm.enabled() else "rules",
+            "themes": list(ai_match.THEMES), "traits": list(ai_match.TRAITS)}
 
 
 class RecommendIn(BaseModel):
     region: str = "강원특별자치도 춘천시"
     date: str
     start: str = "15:00"
+    text: str = Field(default="", max_length=500)
     tags: list[str] = []
+    credentialed_only: bool = False
 
 
 @router.post("/match/recommend")
 def recommend(body: RecommendIn, user: User = Depends(auth.current_user), db: Session = Depends(get_db)):
-    pool = list(db.scalars(select(Teacher).where((Teacher.room_id.is_(None)) | (Teacher.room_id == user.room_id))))
-    rows = ai_match.recommend(pool, body.tags, body.region, body.date, body.start, limit=6)
-    return {"teachers": [teacher_out(r["teacher"], r["score"], r["reasons"]) for r in rows]}
+    pool = list(db.scalars(select(Teacher).where(Teacher.room_id.is_(None))))
+    rows = ai_match.recommend(pool, body.text, body.tags, body.region, body.date, body.start,
+                              credentialed_only=body.credentialed_only, limit=6)
+    return {"teachers": [teacher_out(r["teacher"], r["score"], r["reasons"], r["matched"]) for r in rows]}
 
 
 @router.get("/teachers/{teacher_id}")
@@ -284,29 +303,28 @@ class VisitIn(BaseModel):
     kind: str = Field(default="single", pattern="^(single|regular)$")
     note: str = Field(default="", max_length=300)
     tags: list[str] = []
-
-
-def _auto_accept(visit_id: int) -> None:
-    """Pool teachers are not on anyone's phone during a demo; they accept on their own after a moment."""
-    with SessionLocal() as db:
-        v = db.get(Visit, visit_id)
-        if v and v.status == "requested":
-            v.status = "payment"
-            db.commit()
-            hub.notify(v.room_id, "visit", v.id)
+    video: bool = False  # 실시간 영상 공유(선택)
+    record: bool = False  # 녹화(선택, 보호자 기기에만 저장)
 
 
 @router.post("/visits")
 def create_visit(body: VisitIn, user: User = Depends(auth.require("guardian")), db: Session = Depends(get_db)):
-    t = db.get(Teacher, body.teacher_id)
-    if not t or t.room_id not in (None, user.room_id):
+    src = db.get(Teacher, body.teacher_id)
+    if not src or src.room_id not in (None, user.room_id):
         raise HTTPException(404, "선생님을 찾을 수 없어요.")
+    t = src
+    if src.room_id is None:
+        # The second phone in this demo room becomes the caregiver the guardian picked.
+        t = db.scalar(select(Teacher).where(Teacher.room_id == user.room_id, Teacher.source_id == src.id))
+        t = t or clone_for_room(db, src, user.room_id)
+        teacher_user = db.scalar(select(User).where(User.room_id == user.room_id, User.role == "teacher"))
+        if teacher_user:
+            teacher_user.teacher_id, teacher_user.name = t.id, t.name
     v = Visit(room_id=user.room_id, guardian_id=user.id, teacher_id=t.id, date=body.date, start=body.start,
-              kind=body.kind, price=60000 if body.kind == "regular" else 70000, note=body.note, tags=body.tags)
+              kind=body.kind, price=60000 if body.kind == "regular" else 70000, note=body.note, tags=body.tags,
+              consent_guardian=body.video, record_guardian=body.video and body.record)
     db.add(v)
     db.commit()
-    if t.room_id is None:
-        threading.Timer(4.0, _auto_accept, args=(v.id,)).start()
     changed(v)
     return visit_out(db, v, user)
 
@@ -314,8 +332,6 @@ def create_visit(body: VisitIn, user: User = Depends(auth.require("guardian")), 
 @router.get("/visits")
 def list_visits(user: User = Depends(auth.current_user), db: Session = Depends(get_db)):
     q = select(Visit).where(Visit.room_id == user.room_id)
-    if user.role == "teacher":
-        q = q.where(Visit.teacher_id == user.teacher_id)
     visits = list(db.scalars(q.order_by(Visit.id.desc())))
     return {"visits": [visit_out(db, v, user) for v in visits]}
 
@@ -372,6 +388,7 @@ def cancel(visit_id: int, user: User = Depends(auth.current_user), db: Session =
 
 class ConsentIn(BaseModel):
     value: bool
+    record: bool | None = None
 
 
 @router.post("/visits/{visit_id}/consent")
@@ -379,8 +396,12 @@ def consent(visit_id: int, body: ConsentIn, user: User = Depends(auth.current_us
     v = get_visit(db, visit_id, user)
     if user.role == "guardian":
         v.consent_guardian = body.value
+        if body.record is not None or not body.value:
+            v.record_guardian = bool(body.value and body.record)
     else:
         v.consent_teacher = body.value
+        if body.record is not None or not body.value:
+            v.record_teacher = bool(body.value and body.record)
     if not body.value and v.video_state == "live":
         v.video_state = "stopped"
     db.commit()
@@ -454,6 +475,8 @@ class RecordIn(BaseModel):
     reading_min: int | None = Field(default=None, ge=0, le=300)
     memo: str = Field(default="", max_length=600)
     transcript: str = Field(default="", max_length=2000)
+    theme_activity: str = Field(default="", max_length=60)
+    theme_min: int | None = Field(default=None, ge=0, le=300)
 
 
 @router.put("/visits/{visit_id}/record")
@@ -462,6 +485,7 @@ def save_record(visit_id: int, body: RecordIn, user: User = Depends(auth.require
     need_status(v, "live", "draft")
     rec = db.scalar(select(ActivityRecord).where(ActivityRecord.visit_id == v.id)) or ActivityRecord(visit_id=v.id)
     rec.homework, rec.reading_min, rec.memo = body.homework, body.reading_min, body.memo
+    rec.theme_activity, rec.theme_min = body.theme_activity.strip(), body.theme_min
     if body.transcript:
         rec.transcript = body.transcript
     db.add(rec)
@@ -475,7 +499,8 @@ def report_draft(visit_id: int, user: User = Depends(auth.require("teacher")), d
     v = get_visit(db, visit_id, user)
     need_status(v, "draft", "sent")
     rec = db.scalar(select(ActivityRecord).where(ActivityRecord.visit_id == v.id))
-    f = ai_report.facts(v.tasks, rec.homework if rec else None, rec.reading_min if rec else None, rec.memo if rec else "")
+    f = ai_report.facts(v.tasks, rec.homework if rec else None, rec.reading_min if rec else None,
+                        rec.memo if rec else "", rec.theme_activity if rec else "", rec.theme_min if rec else None)
     rep = db.scalar(select(Report).where(Report.visit_id == v.id))
     if rep and rep.sent_at:
         return {"activity": ai_report.activity_lines(rep.summary), "message": rep.message, "sent": True, "sent_at": kst_hm(rep.sent_at)}
@@ -519,6 +544,7 @@ def report_out(db: Session, v: Visit) -> dict | None:
         "sent_at": kst_hm(rep.sent_at), "message": rep.message, "read": rep.read,
         "homework": f.get("homework"), "reading_min": f.get("reading_min"),
         "school_done": f.get("school_done", []), "activity": ai_report.activity_lines(f) if f else [],
+        "theme_activity": f.get("theme_activity", ""), "theme_min": f.get("theme_min"),
     }
 
 

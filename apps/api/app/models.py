@@ -43,10 +43,16 @@ class Teacher(Base):
     room_id: Mapped[int | None] = mapped_column(ForeignKey("rooms.id"), index=True)
     name: Mapped[str] = mapped_column(String(20))
     region: Mapped[str] = mapped_column(String(20))  # 춘천시, 원주시 ...
-    # certified = 교원 자격 보유(정교사 1·2급, 퇴직 교원 포함)
-    # qualified = 준자격(보육교사·아이돌봄사·아동 교육 전공·아동 지도 경력 검증)
-    qual_type: Mapped[str] = mapped_column(String(12))
-    qual_detail: Mapped[str] = mapped_column(String(60))
+    source_id: Mapped[int | None] = mapped_column(Integer)  # room copy → pool profile it was cloned from
+    # Context first: who they are and what they love doing with children.
+    background: Mapped[str] = mapped_column(String(40), default="")  # 숲해설가 · 은퇴
+    story: Mapped[str] = mapped_column(Text, default="")  # 살아온 이야기 (매칭의 핵심 근거)
+    interests: Mapped[list] = mapped_column(JSON, default=list)  # 테마: 곤충, 음악·노래 ...
+    traits: Mapped[list] = mapped_column(JSON, default=list)  # 차분함, 활발함 ...
+    # Credentials are optional badges, never a requirement:
+    # certified = 교원 자격 · qualified = 보육교사·아이돌봄사 등 · none = 자격 없음(경험·이야기 기반)
+    qual_type: Mapped[str] = mapped_column(String(12), default="none")
+    qual_detail: Mapped[str] = mapped_column(String(60), default="")
     years: Mapped[int] = mapped_column(Integer, default=0)
     headline: Mapped[str] = mapped_column(String(40))  # 초등 저학년 지도
     title: Mapped[str] = mapped_column(String(60))  # 차분하게, 아이의 속도에 맞춰요
@@ -79,6 +85,9 @@ class Visit(Base):
     status: Mapped[str] = mapped_column(String(12), default="requested")
     consent_guardian: Mapped[bool] = mapped_column(Boolean, default=False)
     consent_teacher: Mapped[bool] = mapped_column(Boolean, default=False)
+    # optional recording, kept only on the guardian's own device; needs both sides
+    record_guardian: Mapped[bool] = mapped_column(Boolean, default=False)
+    record_teacher: Mapped[bool] = mapped_column(Boolean, default=False)
     video_state: Mapped[str] = mapped_column(String(12), default="off")  # off | ready | live | stopped
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -118,6 +127,8 @@ class ActivityRecord(Base):
     visit_id: Mapped[int] = mapped_column(ForeignKey("visits.id"), unique=True)
     homework: Mapped[int | None] = mapped_column(Integer)
     reading_min: Mapped[int | None] = mapped_column(Integer)
+    theme_activity: Mapped[str] = mapped_column(String(60), default="")  # 오늘 함께한 테마 활동
+    theme_min: Mapped[int | None] = mapped_column(Integer)
     memo: Mapped[str] = mapped_column(Text, default="")
     transcript: Mapped[str] = mapped_column(Text, default="")
 

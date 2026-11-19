@@ -7,14 +7,14 @@ import { useSession } from "@/lib/session";
 
 type Review = {
   id: number; name: string; applied: string; received: string; doc_title: string; doc_text: string;
-  extracted: { name: string; qualification: string; qual_type: string; career: string };
+  extracted: { name: string; qualification: string; qual_type: string; career: string; crime?: string };
   checked_original: boolean; checked_crime: boolean; request_note: string; status: "pending" | "approved" | "requested";
 };
 
 function Header() {
   return (
     <div className="flex items-center justify-between px-5 pt-6 lg:px-0 lg:pt-8">
-      <h1 className="t24 font-bold">교원 서류 심사</h1>
+      <h1 className="t24 font-bold">선생님 확인 심사</h1>
       <span className="t14 rounded-md bg-disabled px-2 py-1 text-muted">가상 자료 · 운영 연동 전</span>
     </div>
   );
@@ -57,7 +57,7 @@ export default function Reviews() {
         <Header />
         <div className="flex flex-col gap-6 px-5 py-6 lg:px-0">
           <div><Badge tone={done.status === "approved" ? "SENT" : "WAIT"}>{done.status === "approved" ? "승인 완료" : "보완 요청"}</Badge></div>
-          <h2 className="t24 font-bold">{done.name}의 교원 자격 심사를 마쳤어요.</h2>
+          <h2 className="t24 font-bold">{done.name} 선생님 확인 심사를 마쳤어요.</h2>
           <Info>{done.status === "approved" ? "원본 서류와 필수 검증 결과를 확인한 시연 상태입니다." : `보완 요청: ${done.request_note}`}</Info>
           <Button kind="secondary" onClick={() => setDone(null)}>심사 목록으로</Button>
         </div>
@@ -96,13 +96,13 @@ export default function Reviews() {
                   </Card>
                   <Card className="flex flex-col gap-3">
                     <h3 className="t16 font-bold">추출 결과 <span className="t14 font-normal text-muted">· AI 서류 검토 보조</span></h3>
-                    {([["이름", r.extracted.name], ["자격 종류", r.extracted.qualification], ["확인된 경력", r.extracted.career]] as const).map(([k, v]) => (
+                    {([["이름", r.extracted.name], ["범죄경력 조회 (필수)", r.extracted.crime ?? "원본 대조 필요"], ["자격 (선택)", r.extracted.qualification], ["아이들과 함께한 경력", r.extracted.career]] as const).map(([k, v]) => (
                       <label key={k} className="flex flex-col gap-2">
                         <span className="t14 text-muted">{k}</span>
                         <input className={inputCls} defaultValue={v} />
                       </label>
                     ))}
-                    <p className="t14 text-muted">{r.extracted.qual_type === "certified" ? "교원 자격 보유자" : r.extracted.qual_type === "qualified" ? "준자격자 · 아동 지도 경력 검증 대상" : "자격 유형 확인 필요"}</p>
+                    <p className="t14 text-muted">{r.extracted.qual_type === "certified" ? "교원 자격 배지 표시" : r.extracted.qual_type === "qualified" ? "보육·돌봄 자격 배지 표시" : "자격증 없이 경험·이야기로 활동 — 신원·범죄경력 확인만 필수"}</p>
                   </Card>
                 </>
               )}

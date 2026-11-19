@@ -19,10 +19,10 @@ export const GUARDIAN_TABS: Tab[] = [
 ];
 export const TEACHER_TABS: Tab[] = [
   { href: "/t/visits", label: "방문 일정", icon: "calendar", match: ["/t/visits", "/t/schedule"] },
-  { href: "/t/credential", label: "교원 자격", icon: "shield", match: ["/t/credential", "/t/profile"] },
+  { href: "/t/credential", label: "내 프로필", icon: "shield", match: ["/t/credential", "/t/profile"] },
 ];
 const ADMIN_TABS: Tab[] = [
-  { href: "/admin/reviews", label: "교원 서류 심사", icon: "shield", match: ["/admin/reviews"] },
+  { href: "/admin/reviews", label: "선생님 확인 심사", icon: "shield", match: ["/admin/reviews"] },
   { href: "/admin/alerts", label: "운영 경보", icon: "bell", match: ["/admin/alerts"] },
 ];
 

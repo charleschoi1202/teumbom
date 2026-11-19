@@ -21,16 +21,20 @@ def test_full_visit_flow():
         g = h(room["token"])
         t = h(c.post(f"/api/rooms/{room['code']}/join", json={"role": "teacher"}).json()["token"])
 
-        tags = c.post("/api/match/tags", headers=g, json={"text": "낯을 가려요. 숙제를 차분히 도와주시면 좋겠어요."}).json()["tags"]
-        assert "낯가림" in tags and "숙제 지도" in tags
+        text = "곤충이랑 식물을 좋아해요. 낯을 가려요."
+        tags = c.post("/api/match/tags", headers=g, json={"text": text}).json()["tags"]
+        assert "곤충" in tags and "낯가림" in tags
 
-        rec = c.post("/api/match/recommend", headers=g, json={"date": "2026-11-20", "start": "15:00", "tags": tags}).json()
+        rec = c.post("/api/match/recommend", headers=g,
+                     json={"date": "2026-11-20", "start": "15:00", "text": text, "tags": tags}).json()
         top = rec["teachers"][0]
-        assert top["name"] == "김하늘" and top["score"] >= 80 and top["reasons"]
+        assert top["name"] == "한도윤" and top["score"] >= 70 and top["reasons"] and "곤충" in top["matched"]
 
         v = c.post("/api/visits", headers=g, json={"teacher_id": top["id"], "date": "2026-11-20", "start": "15:00",
-                                                   "note": "숙제를 먼저 확인한 뒤 책을 읽어 주세요."}).json()
-        assert v["status"] == "requested"
+                                                   "note": "밖에서 관찰하는 걸 좋아해요.", "tags": tags,
+                                                   "video": True, "record": False}).json()
+        assert v["status"] == "requested" and v["consent"]["guardian"] is True
+        assert c.get("/api/me", headers=t).json()["name"] == "한도윤"  # teacher phone becomes the picked caregiver
         assert c.get(f"/api/visits/{v['id']}", headers=t).json()["address"] is None  # 주소는 확정 전 비공개
 
         assert c.post(f"/api/visits/{v['id']}/accept", headers=t).json()["status"] == "payment"
@@ -49,17 +53,17 @@ def test_full_visit_flow():
         teacher_view = c.get(f"/api/visits/{v['id']}", headers=t).json()
         assert all(task["owner"] == "teacher" for task in teacher_view["tasks"])  # 납부·서명은 선생님에게 안 감
 
-        c.post(f"/api/visits/{v['id']}/consent", headers=g, json={"value": True})
         c.post(f"/api/visits/{v['id']}/consent", headers=t, json={"value": True})
         live = c.post(f"/api/visits/{v['id']}/start", headers=t).json()
         assert live["status"] == "live" and live["video_state"] == "ready"
         for task in live["tasks"]:
-            if task["title"] in ("독서 기록장 챙기기", "숙제 확인", "독서"):
+            if task["title"] in ("독서 기록장 챙기기", "곤충 활동 함께하기", "귀가 전 안전 확인"):
                 c.patch(f"/api/tasks/{task['id']}", headers=t, json={"done": True})
-        c.put(f"/api/visits/{v['id']}/record", headers=t, json={"homework": 2, "reading_min": 20, "memo": ""})
+        c.put(f"/api/visits/{v['id']}/record", headers=t,
+              json={"homework": 2, "reading_min": 20, "memo": "", "theme_activity": "개미 관찰", "theme_min": 30})
         c.post(f"/api/visits/{v['id']}/finish", headers=t)
         draft = c.post(f"/api/visits/{v['id']}/report/draft", headers=t).json()
-        assert draft["message"].startswith("숙제 2개를 확인하고, 책을 20분 동안 읽었어요.")
+        assert draft["message"].startswith("오늘은 30분 동안 개미 관찰을 함께 했어요. 숙제 2개를 확인하고, 책을 20분 동안 읽었어요.")
         assert "독서 기록장" in draft["message"]
         assert "숙제 2개 · 독서 20분" in draft["activity"]
 
@@ -75,6 +79,8 @@ def test_admin_review_and_alert():
         a = h(c.post("/api/auth/admin").json()["token"])
         r = c.get("/api/admin/reviews", headers=a).json()["reviews"][0]
         assert r["extracted"]["name"] == "이가람" and "정교사(2급)" in r["extracted"]["qualification"]
+        exp = c.get("/api/admin/reviews", headers=a).json()["reviews"][2]["extracted"]
+        assert exp["qual_type"] == "none" and exp["crime"] == "해당 없음 확인"
         assert c.post(f"/api/admin/reviews/{r['id']}", headers=a, json={"action": "approve"}).status_code == 409
         c.post(f"/api/admin/reviews/{r['id']}", headers=a, json={"checked_original": True, "checked_crime": True})
         assert c.post(f"/api/admin/reviews/{r['id']}", headers=a, json={"action": "approve"}).json()["status"] == "approved"
