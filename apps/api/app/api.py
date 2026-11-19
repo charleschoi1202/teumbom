@@ -162,7 +162,7 @@ def config():
 @router.post("/rooms")
 def new_room(db: Session = Depends(get_db)):
     room, guardian, _teacher = create_room(db)
-    return {"code": room.code, "token": auth.issue(guardian), "role": "guardian"}
+    return {"code": room.code, "token": auth.issue(guardian, room.code), "role": "guardian"}
 
 
 @router.post("/rooms/{code}/join")
@@ -173,7 +173,7 @@ def join_room(code: str, body: JoinIn, db: Session = Depends(get_db)):
     if body.role not in ("teacher", "guardian"):
         raise HTTPException(400, "역할을 선택해 주세요.")
     user = db.scalar(select(User).where(User.room_id == room.id, User.role == body.role))
-    return {"code": room.code, "token": auth.issue(user), "role": user.role}
+    return {"code": room.code, "token": auth.issue(user, room.code), "role": user.role}
 
 
 @router.get("/me")

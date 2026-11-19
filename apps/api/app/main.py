@@ -51,7 +51,7 @@ async def ws_endpoint(ws: WebSocket, token: str = ""):
         await ws.close(code=4401)
         return
     with SessionLocal() as db:
-        user = db.get(User, int(data["sub"]))
+        user = auth.resolve(db, data)
     if not user or not user.room_id:
         await ws.close(code=4401)
         return

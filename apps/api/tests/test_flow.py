@@ -97,3 +97,19 @@ def test_distance_uses_my_location():
         ts = c.post("/api/match/recommend", headers=g, json={"date": "2026-11-20", "start": "15:00", "tags": ["숙제 지도"]}).json()["teachers"]
         assert ts[0]["region"] == "원주시" and ts[0]["distance_km"] < 5
         assert any("무실동" in r or "단구동" in r or "명륜동" in r for r in ts[0]["reasons"])
+
+
+def test_stale_token_after_reset_is_rejected_not_misrouted():
+    """After a demo DB reset, an old guardian token must not resolve to another room's teacher."""
+    from app import auth
+    from app.db import SessionLocal
+    from app.models import User
+    with TestClient(app) as c:
+        room = c.post("/api/rooms").json()
+        with SessionLocal() as db:
+            teacher = db.query(User).filter(User.role == "teacher").first()
+            forged = auth.jwt.encode({"sub": str(teacher.id), "role": "guardian", "room": teacher.room_id,
+                                      "code": "OLDOLD"}, auth.SECRET, algorithm=auth.ALGO)
+        r = c.post("/api/visits", headers=h(forged), json={"teacher_id": 1, "date": "2026-11-20"})
+        assert r.status_code == 401 and "초기화" in r.json()["detail"]
+        assert c.get("/api/me", headers=h(room["token"])).status_code == 200
