@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>틈봄 시스템 아키텍처 (요약)</title>
+<style>
+  @page { size: 1180px 700px; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #fff; }
+  body { font-family: "Pretendard Variable", Pretendard, "Noto Sans KR", sans-serif; color: #172432; -webkit-font-smoothing: antialiased; letter-spacing: -0.01em; }
+  .page { position: relative; width: 1180px; height: 700px; overflow: hidden; }
+  h1 { position: absolute; left: 0; right: 0; top: 34px; margin: 0; text-align: center; font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
+  .sub { position: absolute; left: 0; right: 0; top: 74px; text-align: center; font-size: 13px; color: #6B7A8C; }
+
+  .box { position: absolute; width: 236px; height: 92px; border-radius: 10px; background: #fff; border: 1.5px solid var(--c); overflow: hidden; }
+  .box .head { height: 30px; background: var(--c); color: #fff; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: center; }
+  .box .name { padding: 10px 16px 0; font-size: 19px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; white-space: nowrap; }
+  .box .tech { padding: 3px 16px 0; font-size: 12px; color: #5B6B7D; white-space: nowrap; }
+
+  .ai { position: absolute; left: 388px; top: 236px; width: 404px; height: 236px; border-radius: 16px;
+        background: linear-gradient(160deg, #EEF4FF 0%, #E3ECFF 100%); border: 2.5px solid #3182F6;
+        box-shadow: 0 0 0 10px rgba(49,130,246,.10), 0 18px 40px rgba(49,130,246,.22); }
+  .ai .head { height: 46px; border-radius: 13px 13px 0 0; background: linear-gradient(90deg, #3182F6, #3F66E0); color: #fff; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 18px; font-weight: 700; }
+  .ai .head .pill { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: rgba(255,255,255,.22); border: 1px solid rgba(255,255,255,.55); }
+  .ai .cards { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; padding: 16px 14px 0; }
+  .card { background: #fff; border: 1.5px solid #BBD0FA; border-radius: 10px; padding: 12px 10px; min-height: 130px; }
+  .card .n { font-size: 11px; font-weight: 700; color: #3182F6; letter-spacing: .02em; }
+  .card .t { font-size: 14px; font-weight: 700; margin-top: 4px; line-height: 1.3; letter-spacing: -0.02em; }
+  .card .k { font-size: 11px; color: #5B6B7D; margin-top: 6px; line-height: 1.4; }
+
+  svg { position: absolute; left: 0; top: 0; }
+  .lbl { font-size: 11.5px; font-weight: 600; }
+  .legend { position: absolute; left: 0; right: 0; bottom: 26px; text-align: center; font-size: 11.5px; color: #6B7A8C; }
+  .legend b { color: #172432; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>틈봄 시스템 아키텍처</h1>
+  <div class="sub">AI 모듈 중심 · Rule-based 데모 모드 · https://teumbom.vercel.app</div>
+
+  <div class="box" style="--c:#A96BE8; left:472px; top:110px">
+    <div class="head">백엔드 · 오케스트레이터</div>
+    <div class="name">FastAPI</div>
+    <div class="tech">REST · JWT · Visit State Machine</div>
+  </div>
+
+  <div class="ai">
+    <div class="head">AI 모듈 <span class="pill">Rule-based · Claude opt-in</span></div>
+    <div class="cards">
+      <div class="card">
+        <div class="n">01 · 통신문 이해</div>
+        <div class="t">Task Extraction<br>3-Step Verify</div>
+        <div class="k">날짜 · 금액 · 원문 대조</div>
+      </div>
+      <div class="card">
+        <div class="n">02 · 선생님 매칭</div>
+        <div class="t">Explainable<br>Matching</div>
+        <div class="k">Geo · Tag · Context Score</div>
+      </div>
+      <div class="card">
+        <div class="n">03 · 방문 리포트</div>
+        <div class="t">Grounded<br>Report Draft</div>
+        <div class="k">Record-only Generation</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="box" style="--c:#3182F6; left:60px; top:110px">
+    <div class="head">프론트엔드</div>
+    <div class="name">Next.js 15 PWA</div>
+    <div class="tech">React 19 · Tailwind 4 · TypeScript</div>
+  </div>
+  <div class="box" style="--c:#2BB3A3; left:60px; top:308px">
+    <div class="head">온디바이스 처리</div>
+    <div class="name">OCR · STT</div>
+    <div class="tech">Tesseract.js · pdf.js · Web Speech</div>
+  </div>
+  <div class="box" style="--c:#F08A3C; left:60px; top:506px">
+    <div class="head">데이터베이스</div>
+    <div class="name">SQLite / PostgreSQL</div>
+    <div class="tech">SQLAlchemy 2</div>
+  </div>
+
+  <div class="box" style="--c:#A96BE8; left:884px; top:110px">
+    <div class="head">실시간</div>
+    <div class="name">WebSocket · WebRTC</div>
+    <div class="tech">Signaling · P2P Stream</div>
+  </div>
+  <div class="box" style="--c:#F08A3C; left:884px; top:308px">
+    <div class="head">품질 검증</div>
+    <div class="name">pytest · E2E</div>
+    <div class="tech">Puppeteer · 2-Device Scenario</div>
+  </div>
+  <div class="box" style="--c:#2BB3A3; left:884px; top:506px">
+    <div class="head">배포 · 자동화</div>
+    <div class="name">GitHub → Vercel · Render</div>
+    <div class="tech">CI/CD · Env Secrets</div>
+  </div>
+
+  <svg width="1180" height="700" viewBox="0 0 1180 700" fill="none">
+    <defs>
+      <marker id="b" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L8,4 L0,8 z" fill="#3182F6"/></marker>
+      <marker id="bs" markerWidth="8" markerHeight="8" refX="1" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M8,0 L0,4 L8,8 z" fill="#3182F6"/></marker>
+      <marker id="p" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L8,4 L0,8 z" fill="#A96BE8"/></marker>
+      <marker id="ps" markerWidth="8" markerHeight="8" refX="1" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M8,0 L0,4 L8,8 z" fill="#A96BE8"/></marker>
+      <marker id="g" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L8,4 L0,8 z" fill="#2BB3A3"/></marker>
+      <marker id="o" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L8,4 L0,8 z" fill="#F08A3C"/></marker>
+      <marker id="os" markerWidth="8" markerHeight="8" refX="1" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M8,0 L0,4 L8,8 z" fill="#F08A3C"/></marker>
+    </defs>
+
+    <!-- FE <-> BE -->
+    <line x1="296" y1="156" x2="472" y2="156" stroke="#3182F6" stroke-width="2" marker-start="url(#bs)" marker-end="url(#b)"/>
+    <text x="384" y="148" text-anchor="middle" class="lbl" fill="#3182F6">REST API</text>
+    <!-- BE <-> RT -->
+    <line x1="708" y1="156" x2="884" y2="156" stroke="#A96BE8" stroke-width="2" marker-start="url(#ps)" marker-end="url(#p)"/>
+    <text x="796" y="148" text-anchor="middle" class="lbl" fill="#A96BE8">Event Push</text>
+    <!-- BE -> AI -->
+    <line x1="590" y1="202" x2="590" y2="236" stroke="#3182F6" stroke-width="3" marker-end="url(#b)"/>
+    <text x="600" y="224" class="lbl" fill="#3182F6">Inference Request</text>
+    <!-- FE -> AI -->
+    <path d="M178 202 V 280 H 388" stroke="#3182F6" stroke-width="2" marker-end="url(#b)"/>
+    <text x="196" y="272" class="lbl" fill="#3182F6">Query · Context</text>
+    <!-- On-device -> AI -->
+    <line x1="296" y1="354" x2="388" y2="354" stroke="#2BB3A3" stroke-width="2" marker-end="url(#g)"/>
+    <text x="342" y="346" text-anchor="middle" class="lbl" fill="#2BB3A3">Text only</text>
+    <!-- DB <-> AI -->
+    <path d="M296 552 H 340 V 430 H 388" stroke="#F08A3C" stroke-width="2" marker-start="url(#os)" marker-end="url(#o)"/>
+    <text x="334" y="492" text-anchor="end" class="lbl" fill="#F08A3C">Read / Write</text>
+    <!-- AI -> QA -->
+    <line x1="792" y1="354" x2="884" y2="354" stroke="#F08A3C" stroke-width="2" marker-end="url(#o)"/>
+    <text x="838" y="346" text-anchor="middle" class="lbl" fill="#F08A3C">Eval</text>
+    <!-- AI -> RT -->
+    <path d="M792 280 H 840 V 180 H 884" stroke="#A96BE8" stroke-width="2" marker-end="url(#p)"/>
+    <text x="846" y="226" class="lbl" fill="#A96BE8">Push</text>
+    <!-- QA -> Deploy -->
+    <line x1="1002" y1="400" x2="1002" y2="506" stroke="#2BB3A3" stroke-width="2" marker-end="url(#g)"/>
+    <text x="1012" y="458" class="lbl" fill="#2BB3A3">Deploy</text>
+    <!-- Deploy -> AI -->
+    <path d="M884 552 H 840 V 430 H 792" stroke="#2BB3A3" stroke-width="2" marker-end="url(#g)"/>
+    <text x="846" y="492" class="lbl" fill="#2BB3A3">Prod E2E</text>
+  </svg>
+
+  <div class="legend"><b>AI</b> Rule-based Extraction · Matching · Drafting (Claude opt-in) &nbsp;·&nbsp; <b>BE</b> FastAPI · SQLAlchemy · PyJWT &nbsp;·&nbsp; <b>FE</b> Next.js PWA &nbsp;·&nbsp; <b>Infra</b> Vercel · Render</div>
+</div>
+</body>
+</html>
